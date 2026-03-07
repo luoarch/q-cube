@@ -186,6 +186,70 @@ export const researchManifestSchema = z.object({
   statisticalMetrics: statisticalMetricsSchema.partial().optional(),
 });
 
+// --- Reality Check (White 2000) ---
+
+export const hypothesisEntrySchema = z.object({
+  name: z.string(),
+  sharpe: z.number(),
+  nReturns: z.number().int(),
+});
+
+export const realityCheckReportSchema = z.object({
+  bestStrategy: z.string(),
+  bestSharpe: z.number(),
+  nStrategies: z.number().int(),
+  nBootstrap: z.number().int(),
+  pValue: z.number(),
+  rejectNull: z.boolean(),
+  significanceLevel: z.number(),
+  hypothesisRegistry: z.array(hypothesisEntrySchema),
+});
+
+// --- Purged Temporal CV ---
+
+export const purgedCVConfigSchema = z.object({
+  backtestConfig: backtestConfigSchema,
+  nFolds: z.number().int().min(2).default(5),
+  embargoDays: z.number().int().min(0).default(21),
+  purgeDays: z.number().int().min(0).default(7),
+});
+
+export const purgedCVResultSchema = z.object({
+  folds: z.array(
+    z.object({
+      fold: z.number().int(),
+      trainPeriod: z.object({ periods: z.array(z.object({ start: z.string(), end: z.string() })) }),
+      testPeriod: z.object({ start: z.string(), end: z.string() }),
+      trainMetrics: backtestMetricsSchema.partial(),
+      testMetrics: backtestMetricsSchema.partial(),
+    })
+  ),
+  avgTrainMetrics: backtestMetricsSchema.partial(),
+  avgTestMetrics: backtestMetricsSchema.partial(),
+  degradation: z.record(z.string(), z.number()),
+  stabilityScore: z.number(),
+  overfittingProbability: z.number(),
+});
+
+// --- Promotion Pipeline ---
+
+export const promotionCheckSchema = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  detail: z.string(),
+  value: z.union([z.number(), z.string()]).nullable().optional(),
+  threshold: z.union([z.number(), z.string()]).nullable().optional(),
+});
+
+export const promotionResultSchema = z.object({
+  strategy: z.string(),
+  variant: z.string(),
+  checks: z.array(promotionCheckSchema),
+  promoted: z.boolean(),
+  blockingChecks: z.array(z.string()),
+  summary: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])),
+});
+
 export type WalkForwardConfig = z.infer<typeof walkForwardConfigSchema>;
 export type WalkForwardResult = z.infer<typeof walkForwardResultSchema>;
 export type StatisticalMetrics = z.infer<typeof statisticalMetricsSchema>;
@@ -193,3 +257,8 @@ export type OOSReport = z.infer<typeof oosReportSchema>;
 export type SubperiodReport = z.infer<typeof subperiodReportSchema>;
 export type SensitivityReport = z.infer<typeof sensitivityReportSchema>;
 export type ResearchManifest = z.infer<typeof researchManifestSchema>;
+export type RealityCheckReport = z.infer<typeof realityCheckReportSchema>;
+export type PurgedCVConfig = z.infer<typeof purgedCVConfigSchema>;
+export type PurgedCVResult = z.infer<typeof purgedCVResultSchema>;
+export type PromotionCheck = z.infer<typeof promotionCheckSchema>;
+export type PromotionResult = z.infer<typeof promotionResultSchema>;
