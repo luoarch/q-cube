@@ -330,6 +330,9 @@ class Filing(Base):
         ForeignKey("raw_source_files.id", ondelete="SET NULL"),
     )
     validation_result: Mapped[dict | None] = mapped_column(JSONB)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

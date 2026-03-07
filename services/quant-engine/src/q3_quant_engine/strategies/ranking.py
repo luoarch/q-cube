@@ -12,6 +12,7 @@ import logging
 import os
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select, text
@@ -445,14 +446,31 @@ def run_strategy(
     session: Session,
     tenant_id: uuid.UUID,
     strategy: str,
+    as_of_date: date | None = None,
 ) -> list[dict[str, object]]:
-    """Execute a strategy and return serializable results."""
-    runner = STRATEGY_RUNNERS.get(strategy)
-    if runner is None:
-        raise ValueError(f"Unknown strategy: {strategy}")
+    """Execute a strategy and return serializable results.
 
-    ranked = runner(session, tenant_id)
-    logger.info("strategy=%s tenant=%s ranked=%d assets", strategy, tenant_id, len(ranked))
+    When as_of_date is provided, uses point-in-time data for survivorship-
+    bias-free ranking (used by the backtest engine).
+    """
+    if as_of_date is not None:
+        from q3_quant_engine.data.pit_data import (
+            fetch_eligible_universe_pit,
+            fetch_fundamentals_pit,
+        )
+        from q3_quant_engine.backtest.engine import _rank_pit_data
+
+        fundamentals = fetch_fundamentals_pit(session, as_of_date)
+        universe = fetch_eligible_universe_pit(session, as_of_date)
+        fundamentals = [(a, fs) for a, fs in fundamentals if a.ticker in universe]
+        ranked = _rank_pit_data(fundamentals, strategy)
+    else:
+        runner = STRATEGY_RUNNERS.get(strategy)
+        if runner is None:
+            raise ValueError(f"Unknown strategy: {strategy}")
+        ranked = runner(session, tenant_id)
+
+    logger.info("strategy=%s tenant=%s ranked=%d assets as_of=%s", strategy, tenant_id, len(ranked), as_of_date)
 
     return [
         {

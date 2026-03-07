@@ -32,6 +32,9 @@ q3-quant-engine = "q3_quant_engine.__main__:main"
 q3-db-migrate = "q3_quant_engine.migrations:main"
 q3-db-seed = "q3_quant_engine.seeds:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
