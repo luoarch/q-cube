@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck shared-contracts
+        run: pnpm --filter @q3/shared-contracts build
+
+      - name: Typecheck API
+        run: pnpm --filter @q3/api typecheck
+
+      - name: Build API
+        run: pnpm --filter @q3/api build
+
+      - name: Run API tests
+        run: pnpm --filter @q3/api test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: q3-frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: q3-frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: q3-frontend
+        run: pnpm build

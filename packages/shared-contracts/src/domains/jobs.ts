@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { strategyTypeSchema, uuidSchema } from "./_shared.js";
 
-export { runStatusSchema } from "./_shared.js";
-
 export const jobKindSchema = z.enum(["strategy_run", "backtest_run"]);
 
 export const strategyRunQueuedEventSchema = z.object({
@@ -13,6 +11,5 @@ export const strategyRunQueuedEventSchema = z.object({
   asOfDate: z.string().datetime().optional()
 });
 
-export type { RunStatus } from "./_shared.js";
 export type JobKind = z.infer<typeof jobKindSchema>;
 export type StrategyRunQueuedEvent = z.infer<typeof strategyRunQueuedEventSchema>;

@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "lint": "echo \"Lint not configured for @q3/api yet\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"No tests configured for @q3/api yet\""
+    "test": "vitest run"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -30,11 +30,13 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.16",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.6",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
   }
 }

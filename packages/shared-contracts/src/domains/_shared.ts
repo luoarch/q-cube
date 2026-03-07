@@ -15,5 +15,16 @@ export const strategyTypeSchema = z.enum([
   "magic_formula_hybrid"
 ]);
 
+export const UNKNOWN_SECTOR = "Sem Setor";
+export const UNKNOWN_SUBSECTOR = "Sem Subsetor";
+
+export const rankingFiltersSchema = z.object({
+  sector: z.string().optional(),
+  quality: z.enum(["high", "medium", "low"]).optional(),
+  liquidity: z.enum(["high", "medium", "low"]).optional(),
+  search: z.string().optional(),
+});
+export type RankingFilters = z.infer<typeof rankingFiltersSchema>;
+
 export type RunStatus = z.infer<typeof runStatusSchema>;
 export type StrategyType = z.infer<typeof strategyTypeSchema>;

@@ -46,11 +46,35 @@ class RedisHealthIndicator extends HealthIndicator {
   }
 }
 
+class ServiceHealthIndicator extends HealthIndicator {
+  constructor(
+    private readonly url: string,
+    private readonly timeoutMs = 5000,
+  ) {
+    super();
+  }
+
+  async isHealthy(key: string): Promise<HealthIndicatorResult> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const res = await fetch(this.url, { signal: controller.signal });
+      clearTimeout(timer);
+      return this.getStatus(key, res.ok);
+    } catch {
+      return this.getStatus(key, false, { message: `${key} unreachable` });
+    }
+  }
+}
+
 @Controller("health")
 @SkipThrottle()
 export class HealthController {
   private readonly dbHealth: DatabaseHealthIndicator;
   private readonly redisHealth: RedisHealthIndicator;
+  private readonly quantEngine: ServiceHealthIndicator;
+  private readonly marketIngestion: ServiceHealthIndicator;
+  private readonly fundamentalsEngine: ServiceHealthIndicator;
 
   constructor(
     private readonly health: HealthCheckService,
@@ -59,6 +83,9 @@ export class HealthController {
   ) {
     this.dbHealth = new DatabaseHealthIndicator(db);
     this.redisHealth = new RedisHealthIndicator(redis);
+    this.quantEngine = new ServiceHealthIndicator("http://localhost:8100/health");
+    this.marketIngestion = new ServiceHealthIndicator("http://localhost:8200/health");
+    this.fundamentalsEngine = new ServiceHealthIndicator("http://localhost:8300/health");
   }
 
   @Get()
@@ -66,7 +93,10 @@ export class HealthController {
   check() {
     return this.health.check([
       () => this.dbHealth.isHealthy("database"),
-      () => this.redisHealth.isHealthy("redis")
+      () => this.redisHealth.isHealthy("redis"),
+      () => this.quantEngine.isHealthy("quant-engine"),
+      () => this.marketIngestion.isHealthy("market-ingestion"),
+      () => this.fundamentalsEngine.isHealthy("fundamentals-engine"),
     ]);
   }
 }
