@@ -16,7 +16,8 @@ dependencies = [
   "pydantic>=2.12.5",
   "sqlalchemy>=2.0.48",
   "alembic>=1.18.4",
-  "psycopg[binary]>=3.3.3"
+  "psycopg[binary]>=3.3.3",
+  "q3-shared-models"
 ]
 
 [project.optional-dependencies]

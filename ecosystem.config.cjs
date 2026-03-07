@@ -44,6 +44,24 @@ module.exports = {
       env: {
         PYTHONUNBUFFERED: "1"
       }
+    },
+    {
+      name: "q3-fundamentals-engine",
+      cwd: "./services/fundamentals-engine",
+      script: ".venv/bin/python",
+      args: "-m q3_fundamentals_engine",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
+      name: "q3-fundamentals-worker",
+      cwd: "./services/fundamentals-engine",
+      script: ".venv/bin/celery",
+      args: "-A q3_fundamentals_engine.celery_app worker -Q fundamentals --loglevel=info",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
     }
   ]
 };

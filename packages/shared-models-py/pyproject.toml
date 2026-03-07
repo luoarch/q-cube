@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q3-shared-models"
+version = "0.1.0"
+description = "Q³ shared SQLAlchemy models (SSOT for all Python services)"
+requires-python = ">=3.13"
+dependencies = [
+  "sqlalchemy>=2.0.48",
+  "psycopg[binary]>=3.3.3"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -13,9 +13,14 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/terminus": "^11.1.1",
+    "@nestjs/throttler": "^6.5.0",
     "@q3/shared-contracts": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.5",
     "ioredis": "^5.8.1",
     "pg": "^8.16.3",
@@ -25,8 +30,11 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
-    "@types/pg": "^8.15.6",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2"
   }
 }

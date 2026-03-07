@@ -1,21 +1,17 @@
 import { z } from "zod";
-import { runStatusSchema } from "./jobs.js";
+import { runStatusSchema, strategyTypeSchema, uuidSchema } from "./_shared.js";
 
-export const strategyTypeSchema = z.enum([
-  "magic_formula_original",
-  "magic_formula_brazil",
-  "magic_formula_hybrid"
-]);
+export { strategyTypeSchema };
 
 export const createStrategyRunSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: uuidSchema,
   strategy: strategyTypeSchema,
   asOfDate: z.string().datetime().optional()
 });
 
 export const strategyRunResponseSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  id: uuidSchema,
+  tenantId: uuidSchema,
   strategy: strategyTypeSchema,
   status: runStatusSchema,
   asOfDate: z.string().datetime().nullable(),
@@ -27,10 +23,10 @@ export const strategyRunResponseSchema = z.object({
 
 export const createStrategyRunResponseSchema = z.object({
   run: strategyRunResponseSchema,
-  jobId: z.string().uuid()
+  jobId: uuidSchema
 });
 
-export type StrategyType = z.infer<typeof strategyTypeSchema>;
+export type { StrategyType } from "./_shared.js";
 export type CreateStrategyRunInput = z.infer<typeof createStrategyRunSchema>;
 export type StrategyRunResponse = z.infer<typeof strategyRunResponseSchema>;
 export type CreateStrategyRunResponse = z.infer<typeof createStrategyRunResponseSchema>;

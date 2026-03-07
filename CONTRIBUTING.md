@@ -28,13 +28,17 @@ pip install -e .[dev]
 cd ../market-ingestion && python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
+
+cd ../fundamentals-engine && python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
 ```
 
 Padrão Python do projeto:
 
 - `src/` layout para pacotes
 - imports absolutos
-- execução via módulo (`python -m q3_quant_engine` / `python -m q3_market_ingestion`)
+- execução via módulo (`python -m q3_quant_engine` / `python -m q3_market_ingestion` / `python -m q3_fundamentals_engine`)
 
 Variáveis de ambiente:
 
@@ -54,15 +58,18 @@ O script usa `.env` automaticamente e resolve host/porta a partir de `DATABASE_U
 
 ```text
 /apps
-  /web
-  /api
+  /web                  → Next.js frontend (scaffold)
+  /api                  → NestJS backend (Drizzle ORM)
 /services
-  /quant-engine
-  /market-ingestion
+  /quant-engine         → Strategy execution, ranking (FastAPI + Celery)
+  /fundamentals-engine  → CVM ingestion, normalization, metrics (FastAPI + Celery)
+  /market-ingestion     → Data client adapters (brapi, CVM, Dados de Mercado)
 /packages
-  /shared-contracts
-  /shared-events
-  /shared-types
+  /shared-contracts     → Zod schemas — SSOT for API payloads
+  /shared-fundamentals  → Canonical keys, metric codes, domain enums (TypeScript)
+  /shared-models-py     → SQLAlchemy models — SSOT for all Python services
+  /shared-events        → Event schemas
+  /shared-types         → Re-exported types from shared-contracts
 ```
 
 ## 4. Fluxo de trabalho
@@ -95,7 +102,8 @@ chore(repo): add workspace typecheck script
 - TypeScript em modo strict
 - Zod para contratos de entrada/saída
 - Sem `any` sem justificativa técnica
-- Python com tipagem explícita (Pydantic + mypy)
+- Python com tipagem explícita (type hints + mypy)
+- SQLAlchemy models compartilhados em `packages/shared-models-py`
 - Logs estruturados (JSON) em componentes backend/worker
 - Persistência Node/NestJS via Drizzle ORM
 - Persistência Python via SQLAlchemy 2.x

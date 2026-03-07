@@ -1,10 +1,16 @@
 import {
+  boolean,
+  date,
+  integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
   timestamp,
-  uuid
+  unique,
+  uuid,
+  varchar
 } from "drizzle-orm/pg-core";
 
 export const membershipRoleEnum = pgEnum("membership_role", [
@@ -35,6 +41,9 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
+  passwordHash: text("password_hash"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
 });
@@ -51,6 +60,50 @@ export const memberships = pgTable("memberships", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
 });
+
+export const assets = pgTable("assets", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  name: text("name").notNull(),
+  sector: text("sector"),
+  subSector: text("sub_sector"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+}, (t) => [
+  unique("uq_assets_tenant_ticker").on(t.tenantId, t.ticker)
+]);
+
+export const financialStatements = pgTable("financial_statements", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  assetId: uuid("asset_id")
+    .notNull()
+    .references(() => assets.id, { onDelete: "cascade" }),
+  periodDate: timestamp("period_date", { withTimezone: true }).notNull(),
+  ebit: numeric("ebit"),
+  enterpriseValue: numeric("enterprise_value"),
+  netWorkingCapital: numeric("net_working_capital"),
+  fixedAssets: numeric("fixed_assets"),
+  roic: numeric("roic"),
+  netDebt: numeric("net_debt"),
+  ebitda: numeric("ebitda"),
+  netMargin: numeric("net_margin"),
+  grossMargin: numeric("gross_margin"),
+  netMarginStd: numeric("net_margin_std"),
+  avgDailyVolume: numeric("avg_daily_volume"),
+  marketCap: numeric("market_cap"),
+  momentum12m: numeric("momentum_12m"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+}, (t) => [
+  unique("uq_financial_statements_asset_period").on(t.assetId, t.periodDate)
+]);
 
 export const strategyRuns = pgTable("strategy_runs", {
   id: uuid("id").primaryKey(),
@@ -91,3 +144,169 @@ export const jobs = pgTable("jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
 });
+
+// ---------------------------------------------------------------------------
+// Fundamentals enums (global, not tenant-scoped)
+// ---------------------------------------------------------------------------
+
+export const statementTypeEnum = pgEnum("statement_type", [
+  "DRE", "BPA", "BPP", "DFC_MD", "DFC_MI", "DMPL", "DVA"
+]);
+
+export const periodTypeEnum = pgEnum("period_type", ["annual", "quarterly"]);
+
+export const filingTypeEnum = pgEnum("filing_type", ["DFP", "ITR", "FCA"]);
+
+export const filingStatusEnum = pgEnum("filing_status", [
+  "pending", "processing", "completed", "failed", "superseded"
+]);
+
+export const batchStatusEnum = pgEnum("batch_status", [
+  "pending", "downloading", "processing", "completed", "failed"
+]);
+
+export const scopeTypeEnum = pgEnum("scope_type", ["con", "ind"]);
+
+export const sourceProviderEnum = pgEnum("source_provider", [
+  "cvm", "brapi", "dados_de_mercado", "manual"
+]);
+
+// ---------------------------------------------------------------------------
+// Fundamentals tables (global, NOT tenant-scoped)
+// ---------------------------------------------------------------------------
+
+export const rawSourceBatches = pgTable("raw_source_batches", {
+  id: uuid("id").primaryKey(),
+  source: sourceProviderEnum("source").notNull(),
+  year: integer("year").notNull(),
+  documentType: filingTypeEnum("document_type").notNull(),
+  status: batchStatusEnum("status").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true })
+});
+
+export const rawSourceFiles = pgTable("raw_source_files", {
+  id: uuid("id").primaryKey(),
+  batchId: uuid("batch_id")
+    .notNull()
+    .references(() => rawSourceBatches.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  url: text("url").notNull(),
+  sha256Hash: varchar("sha256_hash", { length: 64 }).notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const issuers = pgTable("issuers", {
+  id: uuid("id").primaryKey(),
+  cvmCode: text("cvm_code").notNull().unique(),
+  legalName: text("legal_name").notNull(),
+  tradeName: text("trade_name"),
+  cnpj: text("cnpj").notNull().unique(),
+  sector: text("sector"),
+  subsector: text("subsector"),
+  segment: text("segment"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const securities = pgTable("securities", {
+  id: uuid("id").primaryKey(),
+  issuerId: uuid("issuer_id")
+    .notNull()
+    .references(() => issuers.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  securityClass: text("security_class"),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  validFrom: date("valid_from").notNull(),
+  validTo: date("valid_to"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+}, (t) => [
+  unique("uq_securities_issuer_ticker_valid").on(t.issuerId, t.ticker, t.validFrom)
+]);
+
+export const filings = pgTable("filings", {
+  id: uuid("id").primaryKey(),
+  issuerId: uuid("issuer_id")
+    .notNull()
+    .references(() => issuers.id, { onDelete: "cascade" }),
+  source: sourceProviderEnum("source").notNull(),
+  filingType: filingTypeEnum("filing_type").notNull(),
+  referenceDate: date("reference_date").notNull(),
+  versionNumber: integer("version_number").notNull().default(1),
+  isRestatement: boolean("is_restatement").notNull().default(false),
+  supersedesFilingId: uuid("supersedes_filing_id")
+    .references((): any => filings.id, { onDelete: "set null" }),
+  status: filingStatusEnum("status").notNull(),
+  rawFileId: uuid("raw_file_id")
+    .references(() => rawSourceFiles.id, { onDelete: "set null" }),
+  validationResult: jsonb("validation_result"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const statementLines = pgTable("statement_lines", {
+  id: uuid("id").primaryKey(),
+  filingId: uuid("filing_id")
+    .notNull()
+    .references(() => filings.id, { onDelete: "cascade" }),
+  statementType: statementTypeEnum("statement_type").notNull(),
+  scope: scopeTypeEnum("scope").notNull(),
+  periodType: periodTypeEnum("period_type").notNull(),
+  referenceDate: date("reference_date").notNull(),
+  canonicalKey: text("canonical_key"),
+  asReportedLabel: text("as_reported_label").notNull(),
+  asReportedCode: text("as_reported_code").notNull(),
+  normalizedValue: numeric("normalized_value"),
+  currency: text("currency").notNull().default("BRL"),
+  unitScale: text("unit_scale").notNull().default("UNIDADE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const computedMetrics = pgTable("computed_metrics", {
+  id: uuid("id").primaryKey(),
+  issuerId: uuid("issuer_id")
+    .notNull()
+    .references(() => issuers.id, { onDelete: "cascade" }),
+  securityId: uuid("security_id")
+    .references(() => securities.id, { onDelete: "set null" }),
+  metricCode: text("metric_code").notNull(),
+  periodType: periodTypeEnum("period_type").notNull(),
+  referenceDate: date("reference_date").notNull(),
+  value: numeric("value"),
+  formulaVersion: integer("formula_version").notNull().default(1),
+  inputsSnapshotJson: jsonb("inputs_snapshot_json").notNull(),
+  sourceFilingIdsJson: jsonb("source_filing_ids_json").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const restatementEvents = pgTable("restatement_events", {
+  id: uuid("id").primaryKey(),
+  originalFilingId: uuid("original_filing_id")
+    .notNull()
+    .references(() => filings.id, { onDelete: "cascade" }),
+  newFilingId: uuid("new_filing_id")
+    .notNull()
+    .references(() => filings.id, { onDelete: "cascade" }),
+  detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+  affectedMetrics: jsonb("affected_metrics").notNull()
+});
+
+export const marketSnapshots = pgTable("market_snapshots", {
+  id: uuid("id").primaryKey(),
+  securityId: uuid("security_id")
+    .notNull()
+    .references(() => securities.id, { onDelete: "cascade" }),
+  source: sourceProviderEnum("source").notNull(),
+  price: numeric("price"),
+  marketCap: numeric("market_cap"),
+  volume: numeric("volume"),
+  currency: varchar("currency", { length: 255 }).notNull().default("BRL"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+  rawJson: jsonb("raw_json")
+}, (t) => [
+  unique("uq_market_snapshots_security_fetched").on(t.securityId, t.fetchedAt)
+]);

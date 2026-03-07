@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q3-fundamentals-engine"
+version = "0.1.0"
+description = "Q³ fundamentals ingestion and computation engine"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.135.1",
+  "uvicorn>=0.41.0",
+  "celery>=5.6.0",
+  "redis>=5.0.0",
+  "pydantic>=2.12.5",
+  "httpx>=0.28.0",
+  "sqlalchemy>=2.0.48",
+  "psycopg[binary]>=3.3.3",
+  "q3-shared-models"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.2",
+  "ruff>=0.15.5",
+  "mypy>=1.19.1"
+]
+
+[project.scripts]
+q3-fundamentals-engine = "q3_fundamentals_engine.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

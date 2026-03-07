@@ -1,18 +1,18 @@
 import { z } from "zod";
-import { strategyTypeSchema } from "./strategy.js";
+import { strategyTypeSchema, uuidSchema } from "./_shared.js";
 
-export const runStatusSchema = z.enum(["pending", "running", "completed", "failed"]);
+export { runStatusSchema } from "./_shared.js";
 
 export const jobKindSchema = z.enum(["strategy_run", "backtest_run"]);
 
 export const strategyRunQueuedEventSchema = z.object({
-  jobId: z.string().uuid(),
-  runId: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  jobId: uuidSchema,
+  runId: uuidSchema,
+  tenantId: uuidSchema,
   strategy: strategyTypeSchema,
   asOfDate: z.string().datetime().optional()
 });
 
-export type RunStatus = z.infer<typeof runStatusSchema>;
+export type { RunStatus } from "./_shared.js";
 export type JobKind = z.infer<typeof jobKindSchema>;
 export type StrategyRunQueuedEvent = z.infer<typeof strategyRunQueuedEventSchema>;

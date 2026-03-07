@@ -1,309 +1,239 @@
-# Architecture.md — Q³ (Q-Cube)
+# Architecture.md — Q3 (Q-Cube)
 
-## 1. Objetivo Arquitetural
+## 1. Objetivo
 
-Q³ é uma plataforma de pesquisa quantitativa orientada a jobs assíncronos para análise de ações e backtesting. A arquitetura prioriza:
+Q3 e uma plataforma de pesquisa quantitativa para o mercado brasileiro (B3). A arquitetura prioriza:
 
-- separação clara entre produto e engine quantitativo
-- escalabilidade horizontal para processamento de estratégias
-- reprodutibilidade de resultados
-- contratos tipados fim a fim (SSOT)
+- Separacao clara entre produto (web/API) e engines quantitativos (Python)
+- Processamento assincrono para calculos pesados (Celery/Redis)
+- Contratos tipados fim a fim (SSOT via Zod + SQLAlchemy)
+- Reprodutibilidade de resultados (formula_version + inputs_snapshot)
 
-## 2. Princípios
-
-- Quant first: decisões da plataforma devem suportar experimentação quantitativa.
-- Contract first: contratos em `packages/shared-contracts` são a referência oficial.
-- Async by default: cálculos pesados não bloqueiam UX.
-- Observable by design: métricas, tracing e logs estruturados desde o início.
-- Multi-tenant secure: isolamento lógico e autorização por tenant/papel.
-
-## 3. Visão de Alto Nível
+## 2. Diagrama — 7 processos PM2
 
 ```text
-[Web App - Next.js]
-        |
-        | HTTPS (REST)
-        v
-[API - NestJS]
-        |
-        | enqueue jobs
-        v
-[Redis Queue] ----> [Python Workers - Quant Engine]
-        |                         |
-        |                         | writes
-        v                         v
-   [PostgreSQL] <---------> [Parquet Datasets]
+[q3-web]                    Next.js :3000 (scaffold)
+    |
+    | HTTPS (REST)
+    v
+[q3-api]                    NestJS :4000 (Drizzle ORM)
+    |
+    | enqueue jobs
+    v
+[Redis]                     Broker + cache
+    |
+    +---> [q3-quant-worker]             Celery (queue: strategy)
+    |         uses quant-engine code
+    |
+    +---> [q3-fundamentals-worker]      Celery (queue: fundamentals)
+              uses fundamentals-engine code
+
+[q3-quant-engine]           FastAPI :8100 (admin/status)
+[q3-market-ingestion]       FastAPI :8200 (data client adapters)
+[q3-fundamentals-engine]    FastAPI :8300 (CVM pipeline + market snapshots)
+    |
+    v
+[PostgreSQL]                17 tabelas + 1 materialized view
 ```
 
-## 4. Componentes
+Configuracao PM2: `ecosystem.config.cjs`
 
-### 4.1 `apps/web` (Next.js 16)
+## 3. Componentes
 
-Responsabilidades:
+### 3.1 `apps/web` — Next.js 16 (scaffold)
 
-- autenticação e sessão
-- dashboards de ranking/backtest
-- controle de execução de estratégia
-- visualização de carteira e resultados
-
-Padrões:
+Status: scaffold apenas. Auth UI + dashboard vazio, sem funcionalidade real de produto.
 
 - App Router
-- Server Components por padrão
-- TanStack Query para estado assíncrono de cliente
+- Server Components
 
-### 4.2 `apps/api` (NestJS 10)
+### 3.2 `apps/api` — NestJS 11 (Drizzle ORM)
 
-Responsabilidades:
+Responsabilidades implementadas:
 
-- autenticação/autorização (RBAC)
-- controle multi-tenant
-- validação de payloads
-- orquestração de jobs
-- API pública para frontend
-- acesso a dados com Drizzle ORM
+- Strategy run CRUD + job enqueue via Redis
+- Tenant guard (header `x-tenant-id`)
+- Zod validation filter
+- Health check
 
-Módulos iniciais previstos:
+Modulos ativos: `strategy`, `health`, `database`, `redis`.
 
-- `auth`
-- `tenancy`
-- `strategy`
-- `backtest`
-- `portfolio`
-- `jobs`
-
-### 4.3 `services/quant-engine` (Python 3.13)
+### 3.3 `services/quant-engine` — FastAPI + Celery
 
 Responsabilidades:
 
-- executar estratégia quantitativa
-- aplicar pipeline de fatores/filtros/ranking
-- rodar backtests
-- persistir resultados agregados/detalhados
+- Executar estrategias quantitativas (3 tipos: Magic Formula Original, Brasil, Hybrid)
+- Ranking pipeline (`strategies/ranking.py`)
+- Consumir `v_financial_statements_compat` view para dados
 
-Stack:
+Stack: FastAPI, Celery (queue: `strategy`), SQLAlchemy 2.x, Alembic (todas as migrations).
 
-- FastAPI (admin/status endpoints)
-- Celery (execução distribuída)
-- Pydantic v2 (tipagem/validação)
-- SQLAlchemy 2.x (ORM/Core)
-- Alembic (migrações)
+> **Dependencia critica:** Magic Formula Original requer `market_cap` de market snapshots para calcular Enterprise Value e Earnings Yield. Sem `ENABLE_BRAPI=true`, EV/EY ficam NULL e o ranking usa EBIT margin + ROIC como fallback.
 
-### 4.4 `services/market-ingestion`
+### 3.4 `services/fundamentals-engine` — FastAPI + Celery
 
-Responsabilidades:
+Pipeline CVM-first de dados fundamentalistas:
 
-- ingestão incremental de dados de mercado e fundamentos
-- normalização de dados por ticker/período
-- persistência em PostgreSQL e snapshots em Parquet
+1. Download ZIPs da CVM (DFP/ITR/FCA) com SHA-256 dedup
+2. Parse (DfpParser, ItrParser, FcaParser) com version dedup
+3. Normalizacao (canonical mapper, sign normalizer, scope resolver)
+4. Resolucao de emissores/tickers (FCA -> Cadastro -> Manual)
+5. Deteccao de restatements + invalidacao de metricas
+6. Calculo de metricas derivadas (ROIC, EBITDA, margins, net_debt)
+7. Market snapshots (brapi.dev) -> EV, earnings_yield (quando `ENABLE_BRAPI=true`)
 
-### 4.5 `packages/shared-contracts`
+Stack: FastAPI, Celery (queue: `fundamentals`), SQLAlchemy 2.x.
 
-SSOT para contratos de domínio e payloads.
+Doc detalhada: `docs/fundamentals-engine.md`
 
-Tecnologia:
+### 3.5 `services/market-ingestion` — FastAPI
 
-- TypeScript
-- Zod
+Data client adapters para fontes externas:
 
-Domínios iniciais:
+- `clients/brapi.py` — brapi.dev quotes
+- `clients/cvm.py` — CVM dados.gov.br
+- `clients/dadosdemercado.py` — Dados de Mercado API
 
-- `auth`
-- `tenancy`
-- `rbac`
-- `market`
-- `portfolio`
-- `strategy`
-- `backtest`
-- `jobs`
-- `events`
-- `errors`
+Ingest handlers: `handlers/ingest.py`
 
-### 4.6 `packages/shared-types`
+### 3.6 Shared packages
 
-Tipos utilitários semânticos e aliases cross-app.
+| Package | Tecnologia | Escopo |
+|---------|-----------|--------|
+| `shared-contracts` | Zod 4 | SSOT para API payloads (strategy, jobs, events) |
+| `shared-fundamentals` | TypeScript | Canonical keys, metric codes, domain enums |
+| `shared-models-py` | SQLAlchemy 2.x | SSOT para todas as tabelas Python |
+| `shared-types` | TypeScript | Re-export de tipos de shared-contracts |
+| `shared-events` | TypeScript | Event schemas |
 
-### 4.7 `packages/shared-events`
+## 4. Fluxos
 
-Schemas/tipos de eventos internos e integração event-driven.
-
-## 5. Fluxos Críticos
-
-### 5.1 Execução de Estratégia
+### 4.1 Strategy run
 
 ```text
-User -> Web -> API (/strategy-runs)
-API valida contrato + RBAC + tenant
-API cria StrategyRun (pending)
-API publica job no Redis
-Worker consome job e executa pipeline
-Worker persiste resultados + atualiza status
+User -> Web -> API POST /strategy-runs
+API valida contrato + tenant guard
+API cria StrategyRun + Job (pending) via Drizzle
+API publica strategyRunQueuedEvent no Redis (q3:strategy:jobs)
+Celery worker (q3-quant-worker) consome job
+Worker executa ranking pipeline
+Worker persiste resultados + atualiza status (completed/failed)
 API/Web consultam status e exibem output
 ```
 
-### 5.2 Backtest
+### 4.2 CVM import
 
 ```text
-User define parâmetros (janela, rebalance, universo)
-API cria BacktestRun
-Celery dispara tarefas particionadas
-Workers agregam métricas (CAGR, Sharpe, MDD...)
-Resultados consolidados em PostgreSQL/Parquet
+POST /batches/cvm/2024 -> fundamentals-engine
+Cria raw_source_batches (pending)
+Enqueue import_cvm_batch no Redis
+Worker: download -> parse -> normalize -> resolve issuers -> detect restatements -> compute metrics -> refresh compat view
 ```
 
-### 5.3 Ingestão de Mercado
+### 4.3 Market snapshots
 
 ```text
-Scheduler -> market-ingestion
-Coleta dados brutos
-Normaliza e valida schema
-Upsert em PostgreSQL
-Gera snapshot Parquet para analytics
-Emite eventos de atualização
+POST /batches/snapshots/refresh -> fundamentals-engine
+Enqueue fetch_market_snapshots no Redis
+Worker: fetch brapi quotes -> persist market_snapshots -> chain compute_market_metrics
+compute_market_metrics: EV + earnings_yield para issuers com snapshot fresco (< 7 dias) -> refresh compat view
 ```
 
-## 6. Modelo de Dados (Inicial)
+## 5. Data model — 17 tabelas + 1 view
 
-Tabelas principais:
+### Tenant-scoped (infra)
 
-- `tenants`
-- `users`
-- `memberships`
-- `assets`
-- `prices`
-- `financial_statements`
-- `portfolios`
-- `positions`
-- `strategy_runs`
-- `backtest_runs`
-- `jobs`
-- `events`
+| Tabela | Descricao |
+|--------|-----------|
+| `tenants` | Organizacao multi-tenant |
+| `users` | Usuarios do sistema |
+| `memberships` | Relacao tenant-user com role |
 
-Diretrizes:
+### Tenant-scoped (domain)
 
-- todas as entidades com `id`, `created_at`, `updated_at`
-- entidades de negócio com `tenant_id`
-- índices por (`tenant_id`, `status`, `created_at`) em runs/jobs
-- versionamento de datasets para reprodutibilidade
+| Tabela | Descricao |
+|--------|-----------|
+| `assets` | Ativo financeiro (ticker, legacy) |
+| `financial_statements` | Demonstracao financeira (legacy, flat columns) |
+| `strategy_runs` | Execucao de estrategia quantitativa |
+| `backtest_runs` | Execucao de backtest (schema pronto, nao implementado) |
+| `jobs` | Job assincrono (strategy_run, backtest_run) |
 
-## 7. Contratos e Tipagem
+### Fundamentals — Raw Layer (sem tenant)
 
-Regras:
+| Tabela | Descricao |
+|--------|-----------|
+| `raw_source_batches` | Batch de download (source, year, doc_type, status) |
+| `raw_source_files` | Arquivo baixado (filename, sha256, size_bytes) |
 
-- payloads de API validados por Zod no backend
-- frontend consome tipos inferidos dos contratos
-- Python usa modelos gerados/equivalentes Pydantic
-- nenhum endpoint sem schema explícito
+### Fundamentals — Normalized Layer (sem tenant)
 
-## 8. Multi-Tenant e Segurança
+| Tabela | Descricao |
+|--------|-----------|
+| `issuers` | Emissor CVM (cvm_code, cnpj, sector) |
+| `securities` | Ticker de um emissor (issuer_id, ticker, is_primary) |
+| `filings` | Demonstracao financeira (issuer_id, filing_type, reference_date, version) |
+| `statement_lines` | Linha contabil normalizada (canonical_key, normalized_value, scope) |
 
-Entidades de acesso:
+### Fundamentals — Derived Layer (sem tenant)
 
-- `Tenant`
-- `User`
-- `Membership`
-- `Role`
+| Tabela | Descricao |
+|--------|-----------|
+| `computed_metrics` | Indicador derivado (metric_code, value, formula_version, inputs_snapshot) |
+| `restatement_events` | Retificacao detectada (original_filing_id, new_filing_id) |
 
-Papéis:
+### Market Layer (sem tenant)
 
-- `owner`
-- `admin`
-- `member`
-- `viewer`
+| Tabela | Descricao |
+|--------|-----------|
+| `market_snapshots` | Quote point-in-time (security_id, price, market_cap, volume, fetched_at) |
 
-Controles:
+### Views
 
-- autorização no nível de rota + recurso
-- scoping obrigatório por `tenant_id`
-- auditoria de ações críticas (execução, integração, permissão)
+| View | Descricao |
+|------|-----------|
+| `v_financial_statements_compat` | Materialized view — projeta dados canonicos + market snapshots em colunas compativeis com modelo legado |
 
-## 9. Processamento Assíncrono
+## 6. SSOT — 4 camadas
 
-Particionamento de workload por:
+```text
+1. shared-contracts (Zod 4)     → API payloads, domain types
+2. shared-fundamentals (TS)     → Canonical keys, metric codes, enums
+3. shared-models-py (SQLAlchemy) → Tabelas, SSOT para Python services
+4. apps/api/src/db/schema.ts    → Mirror Drizzle (manual, sem geracao automatica nem CI check)
+```
 
-- `ticker`
-- `período`
-- `estratégia`
-- `janela de backtest`
+Regra: mudanca de payload comeca em `shared-contracts`. Mudanca de tabela comeca em `shared-models-py` + migration Alembic.
 
-Estados de execução:
+## 7. Multi-tenant
 
-- `pending`
-- `running`
-- `completed`
-- `failed`
+Schema suporta isolamento multi-tenant:
 
-Políticas:
+- UUID PKs em todas as tabelas
+- `tenant_id` com cascade delete de `tenants`
+- Roles: owner, admin, member, viewer
 
-- retry com backoff exponencial em falhas transitórias
-- idempotência por `run_id + partition_key`
-- dead-letter para jobs inválidos
+**Status atual:** schema pronto, nao enforced na pratica. Tenant guard existe no API (`x-tenant-id` header) mas nao ha validacao real de autenticacao/autorizacao.
 
-## 10. Observabilidade
+## 8. Processamento assincrono
 
-Instrumentação inicial:
+| Queue | Worker | Tasks |
+|-------|--------|-------|
+| `strategy` | q3-quant-worker | `execute_strategy_run` |
+| `fundamentals` | q3-fundamentals-worker | `import_cvm_batch`, `compute_metrics_for_issuer`, `fetch_market_snapshots`, `compute_market_metrics` |
 
-- tracing distribuído (OpenTelemetry)
-- métricas de API, fila e worker (Prometheus)
-- dashboards operacionais e de produto (Grafana)
+Estados de execucao: `pending` -> `running` -> `completed` | `failed`
 
-KPIs técnicos mínimos:
+Broker: Redis 8.x. Celery 5.6.x com prefork pool.
 
-- latência p95 API
-- tempo médio por `strategy_run`
-- throughput da fila
-- taxa de falha e retry
-- latência de ingestão
+## 9. Observabilidade
 
-## 11. Padrões Arquiteturais
+**Estado atual:** apenas logs estruturados via `logging` module (Python) e NestJS logger (TypeScript).
 
-Aplicações previstas:
+Nao implementado:
+- Tracing distribuido
+- Metricas de aplicacao
+- Dashboards operacionais
+- Alertas
 
-- Strategy: estratégias quantitativas intercambiáveis
-- Template Method: pipeline fixo de cálculo
-- Factory: criação de strategy/provider/notifier
-- Adapter: conectores externos (B3/Fintz)
-- Facade: interface simplificada para módulos API
-- Command: jobs de run/backtest
-- Observer: eventos de conclusão/falha
-- State: ciclo de vida de execução
-- Repository/Specification: persistência e consulta de domínio
-
-## 12. Decisões Técnicas (ADRs iniciais)
-
-- ADR-001: Arquitetura polyglot (Node + Python)
-- ADR-002: Redis como broker de jobs
-- ADR-003: PostgreSQL como store transacional principal
-- ADR-004: Parquet para datasets analíticos
-- ADR-005: SSOT com Zod em pacote compartilhado
-- ADR-006: Persistência sem SQL cru na aplicação (Drizzle + SQLAlchemy 2.x + Alembic)
-
-## 13. Roadmap Arquitetural
-
-### Fase 1 (MVP)
-
-- auth + tenancy + RBAC base
-- universe B3
-- Magic Formula original
-- pipeline de strategy run assíncrono
-
-### Fase 2
-
-- Magic Formula Brasil e híbrida
-- integração de carteira
-- melhoria de performance de workers
-
-### Fase 3
-
-- comparação avançada de estratégias
-- backtests distribuídos em larga escala
-- assistente de pesquisa quantitativa
-
-## 14. Critérios de Pronto (Arquitetura)
-
-Uma entrega arquitetural é considerada pronta quando:
-
-- contratos e tipos foram definidos em SSOT
-- fluxo assíncrono está observável (trace + métricas)
-- isolamento multi-tenant está coberto por testes
-- documentação técnica e diagrama foram atualizados
+Isso e divida tecnica reconhecida — a prioridade atual e funcionalidade do pipeline.

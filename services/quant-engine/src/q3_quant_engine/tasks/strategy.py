@@ -1,5 +1,4 @@
 import logging
-import time
 import uuid
 from datetime import UTC, datetime
 
@@ -8,6 +7,7 @@ from sqlalchemy import select
 from q3_quant_engine.celery_app import celery_app
 from q3_quant_engine.db.session import SessionLocal
 from q3_quant_engine.models.entities import Job, RunStatus, StrategyRun
+from q3_quant_engine.strategies.ranking import run_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +46,13 @@ def run_strategy_task(
             job.status = RunStatus.running
             session.commit()
 
-            # Placeholder for real quant execution.
-            time.sleep(1)
+            ranked_assets = run_strategy(session, parsed_tenant_id, strategy)
 
             run.status = RunStatus.completed
             run.result_json = {
                 "strategy": strategy,
-                "rankedAssets": ["PETR4", "VALE3", "WEGE3"],
+                "totalRanked": len(ranked_assets),
+                "rankedAssets": ranked_assets,
                 "generatedAt": _now_iso(),
             }
             run.error_message = None
@@ -61,7 +61,7 @@ def run_strategy_task(
             job.error_message = None
 
             session.commit()
-            logger.info("completed run=%s", run_id)
+            logger.info("completed run=%s strategy=%s assets=%d", run_id, strategy, len(ranked_assets))
 
             return {"run_id": run_id, "status": "completed"}
 

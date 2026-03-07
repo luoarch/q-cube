@@ -1,416 +1,261 @@
 # Q³ — Q-Cube
 
-**Quantity • Quality • Quant Technology**
+**Quantity · Quality · Quant Technology**
 
-Q³ (Q-Cube) é uma plataforma de **pesquisa quantitativa para investimento em ações**, projetada para automatizar a seleção de ativos utilizando **métodos quantitativos disciplinados**.
-
-A plataforma combina três pilares:
-
-```text
-Quantity
-Quality
-Quant Technology
-```
-
-O objetivo é eliminar vieses emocionais e permitir **análise sistemática e reproduzível de estratégias de investimento**.
+Q³ is a **quantitative equity research platform** for the Brazilian market (B3). It automates stock selection using disciplined, reproducible quantitative methods — starting with the Magic Formula and its variations.
 
 ---
 
-## Visão
+## Vision vs current scope
 
-Q³ é um **Quant Strategy Lab** capaz de:
+### Vision
 
-- analisar todas as ações da B3
-- executar estratégias quantitativas
-- gerar rankings de ativos
-- rodar backtests históricos
-- comparar estratégias
-- analisar carteiras pessoais
+A full **Quant Strategy Lab** capable of:
 
-Inicialmente o sistema implementa a **Magic Formula** de Joel Greenblatt e suas variações.
+- analyzing the entire B3 universe
+- executing multiple quantitative strategies
+- generating ranked stock lists
+- running historical backtests
+- comparing strategies side-by-side
+- analyzing personal portfolios
+
+### MVP scope (current)
+
+- **CVM-first fundamentals pipeline** — filing data (DFP/ITR) parsed, normalized, and stored with derived metrics (ROIC, EBITDA, margins, net_debt)
+- **Market snapshots** (opt-in via `ENABLE_BRAPI`) — brapi.dev quotes provide `market_cap` for Enterprise Value and Earnings Yield
+- **Magic Formula ranking** — requires both CVM fundamentals **and** market snapshots for the complete strategy
+- **Next.js scaffold** — auth UI + empty dashboard, no real product functionality yet
+- **Single-tenant** auth scaffold (multi-tenant schema ready, not enforced yet)
+
+> **Important:** Magic Formula = fundamentals + market snapshots. Without `ENABLE_BRAPI=true`, Enterprise Value and Earnings Yield cannot be calculated (`EV = market_cap + net_debt` requires market data). What exists without snapshots is the **CVM-first fundamentals pipeline** — ROIC, margins, EBITDA, net_debt — not the Magic Formula. The ranking falls back to EBIT margin + ROIC, which is a partial approximation.
+
+### Post-MVP roadmap
+
+- Magic Formula Brasil (sector/liquidity filters)
+- Magic Formula Hybrid (quality score, momentum, ROIC, Debt/EBITDA, margin stability)
+- Full backtesting engine (CAGR, Sharpe, max drawdown, volatility, hit rate)
+- Strategy comparison
+- Multi-user onboarding
+- B3 Investor API integration (requires CNPJ + licensing)
 
 ---
 
-## Arquitetura
+## Architecture
 
-Arquitetura **polyglot orientada a quant research**.
+Polyglot monorepo — TypeScript frontend/API + Python engines, connected via Celery/Redis broker.
 
 ```text
-Next.js (Frontend)
+Next.js (:3000)
       ↓
-NestJS (Application Backend)
+NestJS API (:4000)
       ↓
-Redis Queue
+Celery / Redis broker
       ↓
-Python Quant Engine (Workers)
+┌─────────────────────────┐
+│  fundamentals-engine    │  CVM ingestion, normalization, derived metrics
+│  (:8300)                │
+├─────────────────────────┤
+│  quant-engine           │  Strategy execution, ranking, backtests
+│  (:8100)                │
+├─────────────────────────┤
+│  market-ingestion       │  Data client adapters (brapi, CVM, Dados de Mercado)
+│  (:8200)                │
+└─────────────────────────┘
       ↓
-PostgreSQL + Parquet
+PostgreSQL
 ```
 
-Essa separação permite:
+### Data domains
 
-- alta escalabilidade
-- execução paralela de estratégias
-- desacoplamento entre produto e motor quantitativo
+| Domain | Source | Storage | Purpose |
+|--------|--------|---------|---------|
+| **Raw filings** | CVM (DFP/ITR/FCA) | `raw_source_batches` + `raw_source_files` | Audit trail / data lake |
+| **Canonical fundamentals** | CVM → normalization pipeline | `issuers` + `filings` + `statement_lines` | Issuer-centric financial data |
+| **Computed metrics** | Derived from statement_lines | `computed_metrics` | ROIC, EBITDA, margins, net_debt |
+| **Market snapshots** | brapi.dev quotes | `market_snapshots` | Price, market_cap, volume per security |
+| **Market-derived metrics** | market_cap + filing data | `computed_metrics` (EV, earnings yield) | Requires both CVM + snapshot data |
 
----
-
-## Stack Tecnológica
-
-### Frontend
-
-- Next.js **16.x**
-- React **19**
-- TypeScript
-- TailwindCSS
-- TanStack Query
-
-Next.js 16 introduziu melhorias importantes de performance, caching e integração com React moderno. ([Next.js][1])
-
-### Runtime
-
-- Node.js **24.x**
-
-Node 24 é a versão corrente recomendada para aplicações modernas.
-
-### Backend (Application Layer)
-
-- NestJS **11.x**
-- TypeScript
-- Zod
-- Drizzle ORM
-
-Responsável por:
-
-- autenticação
-- RBAC
-- multi-tenant
-- API pública
-- orquestração de jobs
-
-### Quant Engine
-
-- Python **3.13**
-- FastAPI
-- Pydantic **2.x**
-- SQLAlchemy **2.x**
-- Alembic
-
-FastAPI é amplamente usado para APIs de alta performance em Python. ([Medium][2])
-
-### Workers / Processing
-
-- Celery **5.6**
-- Redis **8**
-
-Celery é usado para execução de tarefas distribuídas e processamento paralelo. ([Celery Documentation][3])
-
-### Banco de Dados
-
-- PostgreSQL **18**
-
-Armazena:
-
-- dados de mercado
-- usuários
-- estratégias
-- resultados
-
-### Analytics Storage
-
-- Apache Parquet
-
-Utilizado para:
-
-- séries históricas
-- snapshots de mercado
-- datasets de backtest
-
-### Observabilidade
-
-- OpenTelemetry
-- Prometheus
-- Grafana
-
----
-
-## Estrutura do Repositório
-
-Monorepo.
+### Fundamentals pipeline
 
 ```text
-/apps
-  /web        → Next.js frontend
-  /api        → NestJS backend
+raw ingestion → parsing → normalization → issuer/security mapping → restatement detection → derived metrics → serving
+```
 
-/services
-  /quant-engine
-  /market-ingestion
+### Market enrichment
 
-/packages
-  /shared-contracts
-  /shared-events
-  /shared-types
+```text
+snapshot fetch → staleness validation (7-day window) → market-derived metrics (EV, earnings yield) → compat view refresh
+```
+
+### Async job flow
+
+1. API creates `StrategyRun` + `Job` (status: pending) in a Drizzle transaction
+2. API pushes `strategyRunQueuedEvent` to Redis list `q3:strategy:jobs`
+3. Celery worker dequeues, updates status to running, executes, then marks completed/failed
+
+---
+
+## Repository structure
+
+```text
+apps/
+  web/                → Next.js frontend (scaffold — auth UI + empty dashboard)
+  api/                → NestJS backend (Drizzle ORM)
+
+services/
+  fundamentals-engine/  → CVM ingestion, normalization, metrics (FastAPI + Celery)
+  quant-engine/         → Strategy execution, ranking (FastAPI + Celery, Alembic migrations)
+  market-ingestion/     → Data client adapters (brapi, CVM, Dados de Mercado)
+
+packages/
+  shared-contracts/     → Zod schemas — SSOT for API payloads and domain types
+  shared-fundamentals/  → Canonical keys, metric codes, domain enums (TypeScript)
+  shared-models-py/     → SQLAlchemy models — SSOT for all Python services
+  shared-types/         → Re-exported types from shared-contracts
+  shared-events/        → Event schemas
 ```
 
 ---
 
-## Shared Contracts (SSOT)
+## Shared contracts and SSOT
 
-O sistema utiliza **Single Source of Truth** para contratos compartilhados.
+The system has two layers of SSOT:
 
-Todos os schemas são definidos em:
+| Layer | Package | Technology | Scope |
+|-------|---------|------------|-------|
+| **API contracts** | `shared-contracts` | Zod 4 | Strategy types, job schemas, API payloads |
+| **Fundamentals domain** | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, enums |
+| **Persistence models** | `shared-models-py` | SQLAlchemy 2.x | All table definitions for Python services |
+| **Persistence schema** | `apps/api/src/db/schema.ts` | Drizzle | Manual mirror of SQLAlchemy models for the NestJS API (no auto-generation, no CI check) |
 
-```text
-packages/shared-contracts
-```
+**Important distinction:**
 
-Tecnologia:
-
-```text
-TypeScript + Zod
-```
-
-Esses contratos são consumidos por:
-
-- Next.js
-- NestJS
-- Python (via geração de schemas)
-
-Domínios do SSOT:
-
-```text
-auth
-tenancy
-rbac
-market
-portfolio
-strategy
-backtest
-jobs
-events
-errors
-```
+- **Zod/contracts** = semantic truth (what the domain means)
+- **SQLAlchemy/Drizzle** = persistence mirrors (how it's stored)
+- Both ORMs define the same tables/enums. Migrations are managed by **Alembic only** (in `services/quant-engine/alembic/`).
 
 ---
 
-## Estratégias Quantitativas
+## Quantitative strategies
 
-### 1 — Magic Formula (Original)
+### 1 — Magic Formula (Original) — fundamentals + market snapshots
 
-Baseada no livro de Joel Greenblatt.
-
-Indicadores:
+Based on Joel Greenblatt's book.
 
 ```text
 Earnings Yield = EBIT / Enterprise Value
-Return on Capital = EBIT / (NWC + Fixed Assets)
+Return on Capital = EBIT / (Net Working Capital + Fixed Assets)
+Ranking = Rank(EY) + Rank(ROC)
 ```
 
-Ranking:
+> **Requires `market_cap` from market snapshots** (`ENABLE_BRAPI=true`). Without market data, EV cannot be calculated, EY remains NULL, and the strategy falls back to EBIT margin + ROIC (partial approximation). The CVM-first fundamentals pipeline provides the accounting base (ROIC, margins, net_debt, EBITDA), but the complete Magic Formula needs both CVM + brapi.dev data.
 
-```text
-Rank(EY) + Rank(ROC)
-```
+### 2 — Magic Formula Brasil (post-MVP)
 
-### 2 — Magic Formula Brasil
+Additional filters: exclude financials/utilities, minimum liquidity, minimum market cap, positive EBIT.
 
-Filtros adicionais:
+### 3 — Magic Formula Hybrid (post-MVP)
 
-```text
-excluir financeiras
-excluir utilities
-liquidez mínima
-market cap mínimo
-EBIT positivo
-```
-
-### 3 — Magic Formula Híbrida
-
-Inclui fatores adicionais:
-
-```text
-quality score
-momentum
-ROIC
-Debt / EBITDA
-margin stability
-```
-
-Objetivo: reduzir **value traps**.
+Additional factors: quality score, momentum, ROIC, Debt/EBITDA, margin stability. Objective: reduce value traps.
 
 ---
 
-## Backtesting
+## Data sources
 
-O sistema permite simular estratégias em três cenários:
-
-### Full Cycle
+### Source priority
 
 ```text
-10 anos de mercado
+CVM raw (audit trail) → Dados de Mercado (primary fundamentals) → brapi.dev (market quotes)
 ```
 
-Inclui bull markets e crises.
+Feature flags control which sources are active: `ENABLE_CVM`, `ENABLE_BRAPI`, `ENABLE_DADOS_MERCADO`.
 
-### Stress Test
+### CVM — source of truth
 
-Simulações em períodos de crise.
+All fundamental data originates from CVM (Comissão de Valores Mobiliários) public filings.
 
-Exemplos:
+- **DFP** (annual) and **ITR** (quarterly) filings provide financial statements
+- **FCA** provides issuer metadata and ticker mapping
+- **Cadastro** provides sector classification
+- **Restatements** are detected and handled — superseded filings are marked, affected metrics invalidated
 
-```text
-2008
-2020
-```
+### brapi.dev — market snapshots (opt-in)
 
-### Recovery
-
-Períodos de recuperação pós-crise.
-
-Backtests geram:
-
-```text
-CAGR
-Sharpe Ratio
-Max Drawdown
-Volatility
-Hit Rate
-```
+- Activated via `ENABLE_BRAPI=true`
+- Provides `market_cap`, price, volume per security
+- Free tier: 15k requests/month (~439 issuers)
+- **Staleness policy**: snapshots older than 7 days are treated as stale (NULLed in compat view, skipped in metric computation)
+- Endpoint: `POST /batches/snapshots/refresh`
 
 ---
 
-## Execução de Estratégias
+## Multi-tenant
 
-Execução assíncrona.
+Schema supports multi-tenant isolation (UUID PKs, cascade deletes from `tenants`, `tenantId` scoping). Currently single-tenant in practice.
 
-```text
-User triggers strategy
-        ↓
-NestJS validates request
-        ↓
-StrategyRun created
-        ↓
-Job published to Redis
-        ↓
-Python worker processes
-        ↓
-Results persisted
-        ↓
-User notified
-```
+Roles: `owner`, `admin`, `member`, `viewer`.
 
 ---
 
-## Multi-Tenant
+## Persistence
 
-Sistema projetado para múltiplos usuários.
+| Runtime | ORM | Migrations |
+|---------|-----|------------|
+| NestJS API | Drizzle | — |
+| Python services | SQLAlchemy 2.x | Alembic (in quant-engine) |
 
-Entidades principais:
+Rules:
 
-```text
-Tenant
-User
-Membership
-Role
-Portfolio
-BrokerConnection
-```
-
-Papéis:
-
-```text
-owner
-admin
-member
-viewer
-```
+- Avoid raw SQL in application/business logic
+- Migrations may contain raw SQL when needed (DDL, views, indexes)
+- Materialized views and compat views are acceptable infrastructure
+- `ensure_psycopg_url()` converts `postgresql://` → `postgresql+psycopg://` for Python services
 
 ---
 
-## Padrões Arquiteturais
+## Glossary
 
-O sistema utiliza padrões **GoF** e padrões arquiteturais modernos.
-
-Principais:
-
-- Strategy
-- Template Method
-- Factory
-- Adapter
-- Facade
-- Command
-- Observer
-- State
-- Chain of Responsibility
-- Specification
-- Repository
+| Term | Definition |
+|------|-----------|
+| **Issuer** | A company registered with CVM (identified by `cvm_code` and `cnpj`) |
+| **Security** | A tradable instrument (ticker) belonging to an issuer (e.g., PETR3, PETR4) |
+| **Filing** | A CVM document submission (DFP, ITR, FCA) for a reference date |
+| **Statement line** | A single accounting line item from a filing, with canonical key mapping |
+| **Computed metric** | A derived indicator (ROIC, EBITDA, EV, etc.) calculated from statement lines |
+| **Market snapshot** | A point-in-time quote (price, market_cap, volume) for a security |
+| **Strategy run** | An execution of a quantitative strategy producing a ranked stock list |
 
 ---
 
-## Roadmap
+## Stack versions
 
-### Fase 1 — MVP
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Node.js | 24.x LTS | Runtime for Next.js and NestJS |
+| Python | 3.13+ | Runtime for all Python services |
+| Next.js | 16.x | Frontend framework |
+| React | 19.x | UI library |
+| NestJS | 11.x | Application backend |
+| PostgreSQL | 18.x | Primary database |
+| Redis | 8.x | Celery broker + cache |
+| Celery | 5.6.x | Distributed task queue |
+| SQLAlchemy | 2.x | Python ORM |
+| Drizzle | latest | TypeScript ORM |
+| Zod | 4.x | Schema validation |
+| PM2 | 6.x | Process manager |
+| FastAPI | latest | Python API framework ([docs](https://fastapi.tiangolo.com/)) |
 
-- autenticação
-- universo da B3
-- Magic Formula original
-- ranking de ações
-- execução de estratégias
-
-### Fase 2
-
-- Magic Formula Brasil
-- Magic Formula híbrida
-- filtros avançados de qualidade
-
-### Fase 3
-
-- backtests avançados
-- comparação de estratégias
-- onboarding multi-usuário
+> Versions pinned at bootstrap; no automated version checks in CI.
 
 ---
 
-## Filosofia do Projeto
-
-Q³ segue três princípios fundamentais:
-
-```text
-Disciplina quantitativa
-Reprodutibilidade
-Arquitetura modular
-```
-
-O objetivo é construir uma **plataforma evolutiva de pesquisa quantitativa**, não apenas um screener de ações.
-
----
-
-## Decisão de Persistência
-
-Padrão oficial:
-
-- Node/NestJS: Drizzle ORM
-- Python services: SQLAlchemy 2.x
-- Migrações: Alembic
-
-Regra: evitar SQL cru na camada de aplicação.
-
----
-
-## Licença
+## License
 
 Proprietary — All rights reserved.
 
 ---
 
-## Autor
+## Author
 
-Lucas Moraes  
+Lucas Moraes
 (Q³ Project Founder)
-
----
-
-[1]: https://nextjs.org/blog/next-16 "Next.js 16"
-[2]: https://medium.com/%40faizulkhan56/building-advanced-fastapi-applications-a-comprehensive-guide-to-middleware-versioning-and-04d0b49769b4 "Building advanced FastAPI applications"
-[3]: https://docs.celeryq.dev/en/main/changelog.html "Celery changelog"
