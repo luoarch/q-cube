@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@q3/shared-contracts": ["packages/shared-contracts/dist/index.d.ts"],
+      "@q3/shared-events": ["packages/shared-events/dist/index.d.ts"],
+      "@q3/shared-types": ["packages/shared-types/dist/index.d.ts"]
+    }
+  }
+}

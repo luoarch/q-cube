@@ -1,0 +1,28 @@
+{
+  "name": "q-cube",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Q³ — Quantity • Quality • Quant Technology",
+  "packageManager": "pnpm@10.6.0",
+  "scripts": {
+    "bootstrap:local": "bash scripts/bootstrap-local.sh",
+    "db:migrate": "bash scripts/db-migrate.sh",
+    "db:seed": "bash scripts/db-seed.sh",
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 delete q3-web q3-api q3-quant-engine q3-quant-worker q3-market-ingestion",
+    "pm2:restart": "pm2 restart ecosystem.config.cjs",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs"
+  },
+  "devDependencies": {
+    "pm2": "^6.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@nestjs/core"]
+  }
+}

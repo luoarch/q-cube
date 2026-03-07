@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q3-quant-engine"
+version = "0.1.0"
+description = "Q³ quant strategy execution engine"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.135.1",
+  "uvicorn>=0.41.0",
+  "celery>=5.6.0",
+  "redis>=8.0.0",
+  "pydantic>=2.12.5",
+  "sqlalchemy>=2.0.48",
+  "alembic>=1.18.4",
+  "psycopg[binary]>=3.3.3"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.2",
+  "ruff>=0.15.5",
+  "mypy>=1.19.1"
+]
+
+[project.scripts]
+q3-quant-engine = "q3_quant_engine.__main__:main"
+q3-db-migrate = "q3_quant_engine.migrations:main"
+q3-db-seed = "q3_quant_engine.seeds:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

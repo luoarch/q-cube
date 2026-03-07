@@ -1,0 +1,11 @@
+from celery import Celery
+
+celery_app = Celery(
+    "q3_quant_engine",
+    broker="redis://localhost:6379/0",
+    backend="redis://localhost:6379/1",
+)
+
+celery_app.conf.task_routes = {
+    "q3_quant_engine.tasks.strategy.run_strategy_task": {"queue": "strategy"}
+}

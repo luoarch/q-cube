@@ -1,0 +1,11 @@
+{
+  "name": "@q3/market-ingestion",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "python -m q3_market_ingestion",
+    "lint": "python -m ruff check src",
+    "typecheck": "python -m mypy src",
+    "test": "python -m pytest"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@q3/quant-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "python -m q3_quant_engine",
+    "worker": "celery -A q3_quant_engine.celery_app worker -Q strategy --loglevel=info",
+    "db:migrate": "python -m q3_quant_engine.migrations",
+    "db:seed": "python -m q3_quant_engine.seeds",
+    "lint": "python -m ruff check src",
+    "typecheck": "python -m mypy src",
+    "test": "python -m pytest"
+  }
+}
