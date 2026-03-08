@@ -17,7 +17,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { ChatMode, SendMessage } from '@q3/shared-contracts';
 import type { JwtPayload } from '../auth/auth.service.js';
 
-const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8100';
+const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8400';
 
 const COUNCIL_MODES = new Set<ChatMode>(['agent_solo', 'roundtable', 'debate', 'comparison']);
 
