@@ -1,15 +1,13 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { eq, desc, sql } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import { CacheService } from "../common/cache.service.js";
-import {
-  issuers,
-  marketSnapshots,
-  securities
-} from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import { UNKNOWN_SECTOR, rankingItemSchema } from "@q3/shared-contracts";
+import { Inject, Injectable } from '@nestjs/common';
+import { UNKNOWN_SECTOR, rankingItemSchema } from '@q3/shared-contracts';
+import { eq, desc, sql } from 'drizzle-orm';
+
+import { CacheService } from '../common/cache.service.js';
+import { DB } from '../database/database.constants.js';
+import { issuers, marketSnapshots, securities } from '../db/schema.js';
+
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const RANKING_CACHE_TTL = 300; // 5 minutes
 
@@ -22,7 +20,10 @@ export class RankingService {
 
   async getRanking(tenantId: string) {
     const cacheKey = `q3:ranking:${tenantId}`;
-    const cached = await this.cache.get<ReturnType<typeof this.computeRanking> extends Promise<infer R> ? R : never>(cacheKey);
+    const cached =
+      await this.cache.get<
+        ReturnType<typeof this.computeRanking> extends Promise<infer R> ? R : never
+      >(cacheKey);
     if (cached) return cached;
 
     const raw = await this.computeRanking(tenantId);
@@ -67,7 +68,7 @@ export class RankingService {
       const nwc = row.net_working_capital ? Number(row.net_working_capital) : 0;
       const fa = row.fixed_assets ? Number(row.fixed_assets) : 0;
       const capital = nwc + fa;
-      const returnOnCapital = capital !== 0 ? ebit / capital : (row.roic ? Number(row.roic) : 0);
+      const returnOnCapital = capital !== 0 ? ebit / capital : row.roic ? Number(row.roic) : 0;
 
       const avgDailyVolume = row.avg_daily_volume ? Number(row.avg_daily_volume) : 0;
       const priceData = priceMap.get(row.ticker);
@@ -81,15 +82,18 @@ export class RankingService {
         price: priceData?.price ?? null,
         change: priceData?.change ?? null,
         marketCap,
-        quality:
-          returnOnCapital >= 0.15 ? "high" : returnOnCapital >= 0.08 ? "medium" : ("low" as const),
-        liquidity:
-          avgDailyVolume >= 1_000_000
-            ? "high"
-            : avgDailyVolume >= 100_000
-              ? "medium"
-              : ("low" as const),
+        quality: (returnOnCapital >= 0.15 ? 'high' : returnOnCapital >= 0.08 ? 'medium' : 'low') as
+          | 'high'
+          | 'medium'
+          | 'low',
+        liquidity: (avgDailyVolume >= 1_000_000
+          ? 'high'
+          : avgDailyVolume >= 100_000
+            ? 'medium'
+            : 'low') as 'high' | 'medium' | 'low',
         magicFormulaRank: 0,
+        compositeScore: null as number | null,
+        qualityScore: Math.min(returnOnCapital / 0.15, 1),
       };
     });
 
@@ -108,16 +112,18 @@ export class RankingService {
 
     for (const item of enriched) {
       item.magicFormulaRank =
-        (eyMap.get(item.ticker) ?? enriched.length) +
-        (rocMap.get(item.ticker) ?? enriched.length);
+        (eyMap.get(item.ticker) ?? enriched.length) + (rocMap.get(item.ticker) ?? enriched.length);
     }
 
     // Sort by combined rank ascending (1 = best)
     enriched.sort((a, b) => a.magicFormulaRank - b.magicFormulaRank);
 
-    // Re-assign sequential ranks
+    // Re-assign sequential ranks and compute composite percentile score
+    const n = enriched.length;
     enriched.forEach((item, i) => {
       item.magicFormulaRank = i + 1;
+      // Composite: percentile rank (0 = worst, 1 = best) based on magic formula position
+      item.compositeScore = n > 1 ? Math.round((1 - i / (n - 1)) * 1000) / 1000 : 1;
     });
 
     return enriched;

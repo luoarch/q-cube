@@ -1,15 +1,17 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
-import { AuthGuard } from "../auth/auth.guard.js";
-import { CurrentUser } from "../auth/current-user.decorator.js";
-import type { JwtPayload } from "../auth/auth.service.js";
-import { DashboardService } from "./dashboard.service.js";
+import { Controller, Get, UseGuards } from '@nestjs/common';
 
-@Controller("dashboard")
+import { DashboardService } from './dashboard.service.js';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+
+import type { JwtPayload } from '../auth/auth.service.js';
+
+@Controller('dashboard')
 @UseGuards(AuthGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @Get("summary")
+  @Get('summary')
   async summary(@CurrentUser() user: JwtPayload) {
     return this.dashboardService.getSummary(user.tenantId);
   }

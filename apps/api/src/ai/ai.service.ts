@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   aiSuggestionSchema,
   aiSuggestionDetailSchema,
@@ -6,29 +6,22 @@ import {
   type AISuggestionDetail,
   type AISuggestionsQuery,
   type UpdateReviewStatus,
-} from "@q3/shared-contracts";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import {
-  aiExplanations,
-  aiResearchNotes,
-  aiSuggestions,
-} from "../db/schema.js";
-import type * as schema from "../db/schema.js";
+} from '@q3/shared-contracts';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
+
+import { DB } from '../database/database.constants.js';
+import { aiExplanations, aiResearchNotes, aiSuggestions } from '../db/schema.js';
+
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 @Injectable()
 export class AIService {
   private readonly logger = new Logger(AIService.name);
 
-  constructor(
-    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
-  ) {}
+  constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {}
 
-  async listSuggestions(
-    tenantId: string,
-    query: AISuggestionsQuery,
-  ): Promise<AISuggestion[]> {
+  async listSuggestions(tenantId: string, query: AISuggestionsQuery): Promise<AISuggestion[]> {
     const conditions = [eq(aiSuggestions.tenantId, tenantId)];
 
     if (query.module) {
@@ -41,7 +34,7 @@ export class AIService {
       conditions.push(eq(aiSuggestions.triggerEntityId, query.triggerEntityId));
     }
     if (!query.includeArchived) {
-      conditions.push(ne(aiSuggestions.reviewStatus, "expired"));
+      conditions.push(ne(aiSuggestions.reviewStatus, 'expired'));
     }
 
     const rows = await this.db
@@ -53,16 +46,11 @@ export class AIService {
     return rows.map((row) => this.mapSuggestion(row));
   }
 
-  async getSuggestionDetail(
-    id: string,
-    tenantId: string,
-  ): Promise<AISuggestionDetail | null> {
+  async getSuggestionDetail(id: string, tenantId: string): Promise<AISuggestionDetail | null> {
     const [row] = await this.db
       .select()
       .from(aiSuggestions)
-      .where(
-        and(eq(aiSuggestions.id, id), eq(aiSuggestions.tenantId, tenantId)),
-      )
+      .where(and(eq(aiSuggestions.id, id), eq(aiSuggestions.tenantId, tenantId)))
       .limit(1);
 
     if (!row) return null;
@@ -98,19 +86,11 @@ export class AIService {
     });
   }
 
-  async getSuggestionsByEntity(
-    entityId: string,
-    tenantId: string,
-  ): Promise<AISuggestion[]> {
+  async getSuggestionsByEntity(entityId: string, tenantId: string): Promise<AISuggestion[]> {
     const rows = await this.db
       .select()
       .from(aiSuggestions)
-      .where(
-        and(
-          eq(aiSuggestions.triggerEntityId, entityId),
-          eq(aiSuggestions.tenantId, tenantId),
-        ),
-      )
+      .where(and(eq(aiSuggestions.triggerEntityId, entityId), eq(aiSuggestions.tenantId, tenantId)))
       .orderBy(desc(aiSuggestions.createdAt));
 
     return rows.map((row) => this.mapSuggestion(row));
@@ -129,9 +109,7 @@ export class AIService {
         reviewedBy: userId,
         reviewedAt: new Date(),
       })
-      .where(
-        and(eq(aiSuggestions.id, id), eq(aiSuggestions.tenantId, tenantId)),
-      )
+      .where(and(eq(aiSuggestions.id, id), eq(aiSuggestions.tenantId, tenantId)))
       .returning();
 
     if (!updated) return null;

@@ -1,25 +1,23 @@
-import {
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  Logger
-} from "@nestjs/common";
+import { randomUUID } from 'node:crypto';
+
+import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   type CreateStrategyRunInput,
   createStrategyRunResponseSchema,
   strategyRunResponseSchema,
-  strategyRunQueuedEventSchema
-} from "@q3/shared-contracts";
-import { ConfigService } from "@nestjs/config";
-import { and, desc, eq } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Redis } from "ioredis";
-import { randomUUID } from "node:crypto";
-import { DB } from "../database/database.constants.js";
-import { REDIS } from "../redis/redis.constants.js";
-import { jobs, strategyRuns } from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import type { EnvConfig } from "../config/env.schema.js";
+  strategyRunQueuedEventSchema,
+} from '@q3/shared-contracts';
+import { and, desc, eq } from 'drizzle-orm';
+
+import { DB } from '../database/database.constants.js';
+import { jobs, strategyRuns } from '../db/schema.js';
+import { REDIS } from '../redis/redis.constants.js';
+
+import type { EnvConfig } from '../config/env.schema.js';
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Redis } from 'ioredis';
 
 @Injectable()
 export class StrategyService {
@@ -29,9 +27,9 @@ export class StrategyService {
   constructor(
     @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
     @Inject(REDIS) private readonly redis: Redis,
-    config: ConfigService<EnvConfig>
+    config: ConfigService<EnvConfig>,
   ) {
-    this.queueKey = config.get("STRATEGY_QUEUE_KEY", { infer: true })!;
+    this.queueKey = config.get('STRATEGY_QUEUE_KEY', { infer: true })!;
   }
 
   async createRun(input: CreateStrategyRunInput) {
@@ -45,30 +43,28 @@ export class StrategyService {
           id: runId,
           tenantId: input.tenantId,
           strategy: input.strategy,
-          status: "pending",
-          asOfDate: input.asOfDate ? new Date(input.asOfDate) : null
+          status: 'pending',
+          asOfDate: input.asOfDate ? new Date(input.asOfDate) : null,
         })
         .returning();
 
       await tx.insert(jobs).values({
         id: jobId,
         tenantId: input.tenantId,
-        kind: "strategy_run",
-        status: "pending",
+        kind: 'strategy_run',
+        status: 'pending',
         payloadJson: {
           runId,
           strategy: input.strategy,
-          asOfDate: input.asOfDate ?? null
-        }
+          asOfDate: input.asOfDate ?? null,
+        },
       });
 
       return inserted;
     });
 
     if (!run) {
-      throw new InternalServerErrorException(
-        "Failed to create strategy run"
-      );
+      throw new InternalServerErrorException('Failed to create strategy run');
     }
 
     const queuedEvent = strategyRunQueuedEventSchema.parse({
@@ -76,10 +72,10 @@ export class StrategyService {
       runId,
       tenantId: input.tenantId,
       strategy: input.strategy,
-      asOfDate: input.asOfDate
+      asOfDate: input.asOfDate,
     });
 
-    if (this.redis.status !== "ready") {
+    if (this.redis.status !== 'ready') {
       await this.redis.connect();
     }
 
@@ -96,9 +92,9 @@ export class StrategyService {
         errorMessage: run.errorMessage,
         result: run.resultJson,
         createdAt: run.createdAt.toISOString(),
-        updatedAt: run.updatedAt.toISOString()
+        updatedAt: run.updatedAt.toISOString(),
       },
-      jobId
+      jobId,
     });
   }
 
@@ -120,7 +116,7 @@ export class StrategyService {
         result: run.resultJson,
         createdAt: run.createdAt.toISOString(),
         updatedAt: run.updatedAt.toISOString(),
-      })
+      }),
     );
   }
 
@@ -128,9 +124,7 @@ export class StrategyService {
     const [run] = await this.db
       .select()
       .from(strategyRuns)
-      .where(
-        and(eq(strategyRuns.id, id), eq(strategyRuns.tenantId, tenantId))
-      )
+      .where(and(eq(strategyRuns.id, id), eq(strategyRuns.tenantId, tenantId)))
       .limit(1);
 
     if (!run) {
@@ -146,7 +140,7 @@ export class StrategyService {
       errorMessage: run.errorMessage,
       result: run.resultJson,
       createdAt: run.createdAt.toISOString(),
-      updatedAt: run.updatedAt.toISOString()
+      updatedAt: run.updatedAt.toISOString(),
     });
   }
 
@@ -154,7 +148,7 @@ export class StrategyService {
     runId: string;
     tenantId: string;
     jobId: string;
-    status: "running" | "completed" | "failed";
+    status: 'running' | 'completed' | 'failed';
     result?: unknown;
     errorMessage?: string;
   }) {
@@ -165,25 +159,18 @@ export class StrategyService {
           status: input.status,
           resultJson: input.result ?? null,
           errorMessage: input.errorMessage ?? null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(strategyRuns.id, input.runId),
-            eq(strategyRuns.tenantId, input.tenantId)
-          )
-        );
+        .where(and(eq(strategyRuns.id, input.runId), eq(strategyRuns.tenantId, input.tenantId)));
 
       await tx
         .update(jobs)
         .set({
           status: input.status,
           errorMessage: input.errorMessage ?? null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
-        .where(
-          and(eq(jobs.id, input.jobId), eq(jobs.tenantId, input.tenantId))
-        );
+        .where(and(eq(jobs.id, input.jobId), eq(jobs.tenantId, input.tenantId)));
     });
   }
 }

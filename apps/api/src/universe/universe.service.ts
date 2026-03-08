@@ -1,16 +1,16 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { eq, sql } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import { issuers, securities, computedMetrics } from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import { UNKNOWN_SECTOR, UNKNOWN_SUBSECTOR, universeSchema } from "@q3/shared-contracts";
+import { Inject, Injectable } from '@nestjs/common';
+import { UNKNOWN_SECTOR, UNKNOWN_SUBSECTOR, universeSchema } from '@q3/shared-contracts';
+import { eq, sql } from 'drizzle-orm';
+
+import { DB } from '../database/database.constants.js';
+import { issuers, securities, computedMetrics } from '../db/schema.js';
+
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 @Injectable()
 export class UniverseService {
-  constructor(
-    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>
-  ) {}
+  constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {}
 
   async getUniverse() {
     // Count distinct issuers with at least 1 security
@@ -49,7 +49,7 @@ export class UniverseService {
         value: computedMetrics.value,
       })
       .from(computedMetrics)
-      .where(eq(computedMetrics.metricCode, "market_cap"));
+      .where(eq(computedMetrics.metricCode, 'market_cap'));
 
     const mcMap = new Map<string, number>();
     for (const row of mcRows) {
@@ -92,20 +92,16 @@ export class UniverseService {
       sub.marketCap += mc;
     }
 
-    const sectors = Array.from(sectorGroups.entries()).map(
-      ([name, group]) => ({
-        name,
-        count: group.count,
-        marketCap: group.marketCap,
-        children: Array.from(group.subsectors.entries()).map(
-          ([subName, sub]) => ({
-            name: subName,
-            count: sub.count,
-            marketCap: sub.marketCap,
-          })
-        ),
-      })
-    );
+    const sectors = Array.from(sectorGroups.entries()).map(([name, group]) => ({
+      name,
+      count: group.count,
+      marketCap: group.marketCap,
+      children: Array.from(group.subsectors.entries()).map(([subName, sub]) => ({
+        name: subName,
+        count: sub.count,
+        marketCap: sub.marketCap,
+      })),
+    }));
 
     return universeSchema.parse({ totalStocks, sectors });
   }

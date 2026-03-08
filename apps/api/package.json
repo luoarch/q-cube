@@ -7,7 +7,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "lint": "echo \"Lint not configured for @q3/api yet\"",
+    "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

@@ -1,5 +1,6 @@
-import { z } from "zod";
-import { periodTypeSchema, scopeTypeSchema, statementTypeSchema } from "./enums.js";
+import { z } from 'zod';
+
+import { periodTypeSchema, scopeTypeSchema, statementTypeSchema } from './enums.js';
 
 export const statementLineSchema = z.object({
   id: z.string().uuid(),
@@ -13,7 +14,7 @@ export const statementLineSchema = z.object({
   asReportedCode: z.string(),
   normalizedValue: z.number().nullable(),
   currency: z.string(),
-  unitScale: z.string()
+  unitScale: z.string(),
 });
 
 export type StatementLine = z.infer<typeof statementLineSchema>;

@@ -1,7 +1,9 @@
-import { Inject, Injectable } from "@nestjs/common";
-import type { Redis } from "ioredis";
-import type { z } from "zod";
-import { REDIS } from "../redis/redis.constants.js";
+import { Inject, Injectable } from '@nestjs/common';
+
+import { REDIS } from '../redis/redis.constants.js';
+
+import type { Redis } from 'ioredis';
+import type { z } from 'zod';
 
 @Injectable()
 export class CacheService {
@@ -28,7 +30,7 @@ export class CacheService {
   }
 
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-    await this.redis.set(key, JSON.stringify(value), "EX", ttlSeconds);
+    await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
   }
 
   async del(pattern: string): Promise<void> {

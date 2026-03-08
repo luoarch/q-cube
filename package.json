@@ -10,7 +10,10 @@
     "db:seed": "bash scripts/db-seed.sh",
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,css}\"",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "pm2:start": "pm2 start ecosystem.config.cjs",
@@ -20,9 +23,24 @@
     "pm2:logs": "pm2 logs"
   },
   "devDependencies": {
-    "pm2": "^6.0.0"
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.1.6",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import-x": "^4.16.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "pm2": "^6.0.0",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.56.1"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@nestjs/core"]
+    "onlyBuiltDependencies": [
+      "@nestjs/core"
+    ],
+    "overrides": {
+      "@radix-ui/react-portal": ">=1.0.0"
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const issuerSchema = z.object({
   id: z.string().uuid(),
@@ -11,7 +11,7 @@ export const issuerSchema = z.object({
   segment: z.string().nullable(),
   status: z.string(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 });
 
 export const securitySchema = z.object({
@@ -23,7 +23,7 @@ export const securitySchema = z.object({
   validFrom: z.string().datetime(),
   validTo: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 });
 
 export type Issuer = z.infer<typeof issuerSchema>;

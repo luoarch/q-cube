@@ -1,22 +1,16 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, desc } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import {
-  assets,
-  financialStatements,
-  strategyRuns,
-  issuers,
-  securities,
-} from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import { UNKNOWN_SECTOR, strategyResultSchema, portfolioSchema } from "@q3/shared-contracts";
+import { Inject, Injectable } from '@nestjs/common';
+import { UNKNOWN_SECTOR, strategyResultSchema, portfolioSchema } from '@q3/shared-contracts';
+import { and, eq, desc } from 'drizzle-orm';
+
+import { DB } from '../database/database.constants.js';
+import { assets, financialStatements, strategyRuns, issuers, securities } from '../db/schema.js';
+
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 @Injectable()
 export class PortfolioService {
-  constructor(
-    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>
-  ) {}
+  constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {}
 
   async getPortfolio(tenantId: string) {
     const emptyPortfolio = {
@@ -31,12 +25,7 @@ export class PortfolioService {
     const [latestRun] = await this.db
       .select()
       .from(strategyRuns)
-      .where(
-        and(
-          eq(strategyRuns.tenantId, tenantId),
-          eq(strategyRuns.status, "completed")
-        )
-      )
+      .where(and(eq(strategyRuns.tenantId, tenantId), eq(strategyRuns.status, 'completed')))
       .orderBy(desc(strategyRuns.createdAt))
       .limit(1);
 
@@ -50,7 +39,7 @@ export class PortfolioService {
     const rankedAssets = parsed.data.rankedAssets;
 
     const tickers = rankedAssets
-      .map((a) => (typeof a === "string" ? a : a.ticker))
+      .map((a) => (typeof a === 'string' ? a : a.ticker))
       .filter(Boolean)
       .slice(0, 10);
 
@@ -103,8 +92,7 @@ export class PortfolioService {
         }
       }
 
-      const sector =
-        asset?.sector || sectorMap.get(ticker) || UNKNOWN_SECTOR;
+      const sector = asset?.sector || sectorMap.get(ticker) || UNKNOWN_SECTOR;
 
       const value = mc * weight;
       totalMC += value;
@@ -120,14 +108,13 @@ export class PortfolioService {
       });
     }
 
-    const avgRoic =
-      holdings.length > 0 ? totalRoic / holdings.length : 0;
+    const avgRoic = holdings.length > 0 ? totalRoic / holdings.length : 0;
 
     // Factor tilt: aggregate metrics
     const factorTilt = [
-      { name: "ROIC", value: Math.round(avgRoic * 10000) / 100, max: 100 },
+      { name: 'ROIC', value: Math.round(avgRoic * 10000) / 100, max: 100 },
       {
-        name: "Quality",
+        name: 'Quality',
         value: Math.round(avgRoic >= 0.15 ? 80 : avgRoic >= 0.08 ? 50 : 20),
         max: 100,
       },

@@ -1,11 +1,9 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
-import type { CanActivate, ExecutionContext } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import type { Request } from "express";
-import type { JwtPayload } from "./auth.service.js";
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+import type { JwtPayload } from './auth.service.js';
+import type { CanActivate, ExecutionContext } from '@nestjs/common';
+import type { Request } from 'express';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -15,8 +13,8 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const header = request.headers.authorization;
 
-    if (!header?.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Missing authorization header");
+    if (!header?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Missing authorization header');
     }
 
     const token = header.slice(7);
@@ -25,11 +23,11 @@ export class AuthGuard implements CanActivate {
     try {
       payload = await this.jwtService.verifyAsync<JwtPayload>(token);
     } catch {
-      throw new UnauthorizedException("Invalid or expired token");
+      throw new UnauthorizedException('Invalid or expired token');
     }
 
-    if (payload.type === "refresh") {
-      throw new UnauthorizedException("Refresh tokens cannot be used for authentication");
+    if (payload.type === 'refresh') {
+      throw new UnauthorizedException('Refresh tokens cannot be used for authentication');
     }
 
     (request as any).userId = payload.sub;

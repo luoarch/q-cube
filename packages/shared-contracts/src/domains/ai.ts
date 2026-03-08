@@ -1,23 +1,24 @@
-import { z } from "zod";
-import { uuidSchema } from "./_shared.js";
+import { z } from 'zod';
+
+import { uuidSchema } from './_shared.js';
 
 // ---------------------------------------------------------------------------
 // Enums (SSOT — mirrored from Python AIModule, ReviewStatus, etc.)
 // ---------------------------------------------------------------------------
 
-export const aiModuleSchema = z.enum(["ranking_explainer", "backtest_narrator"]);
+export const aiModuleSchema = z.enum(['ranking_explainer', 'backtest_narrator']);
 export type AIModule = z.infer<typeof aiModuleSchema>;
 
-export const reviewStatusSchema = z.enum(["pending", "approved", "rejected", "expired"]);
+export const reviewStatusSchema = z.enum(['pending', 'approved', 'rejected', 'expired']);
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
 
-export const confidenceLevelSchema = z.enum(["high", "medium", "low"]);
+export const confidenceLevelSchema = z.enum(['high', 'medium', 'low']);
 export type ConfidenceLevel = z.infer<typeof confidenceLevelSchema>;
 
-export const explanationTypeSchema = z.enum(["position", "sector", "outlier", "metric"]);
+export const explanationTypeSchema = z.enum(['position', 'sector', 'outlier', 'metric']);
 export type ExplanationType = z.infer<typeof explanationTypeSchema>;
 
-export const noteTypeSchema = z.enum(["summary", "concern", "highlight", "recommendation"]);
+export const noteTypeSchema = z.enum(['summary', 'concern', 'highlight', 'recommendation']);
 export type NoteType = z.infer<typeof noteTypeSchema>;
 
 // ---------------------------------------------------------------------------
@@ -92,7 +93,7 @@ export type AISuggestionDetail = z.infer<typeof aiSuggestionDetailSchema>;
 // ---------------------------------------------------------------------------
 
 export const updateReviewStatusSchema = z.object({
-  reviewStatus: z.enum(["approved", "rejected"]),
+  reviewStatus: z.enum(['approved', 'rejected']),
 });
 export type UpdateReviewStatus = z.infer<typeof updateReviewStatusSchema>;
 

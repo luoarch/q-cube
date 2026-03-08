@@ -1,5 +1,6 @@
-import { z } from "zod";
-import { metricCodeSchema, periodTypeSchema } from "./enums.js";
+import { z } from 'zod';
+
+import { metricCodeSchema, periodTypeSchema } from './enums.js';
 
 export const computedMetricSchema = z.object({
   id: z.string().uuid(),
@@ -13,7 +14,7 @@ export const computedMetricSchema = z.object({
   inputsSnapshotJson: z.record(z.string(), z.unknown()),
   sourceFilingIdsJson: z.array(z.string().uuid()),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 });
 
 export type ComputedMetric = z.infer<typeof computedMetricSchema>;

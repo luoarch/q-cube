@@ -1,12 +1,12 @@
 export type StrategyCompletedEvent = {
-  type: "strategy.completed";
+  type: 'strategy.completed';
   tenantId: string;
   runId: string;
   createdAt: string;
 };
 
 export type StrategyFailedEvent = {
-  type: "strategy.failed";
+  type: 'strategy.failed';
   tenantId: string;
   runId: string;
   reason: string;

@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.next
+coverage
+*.min.js
+*.min.css
+pnpm-lock.yaml
+services
+packages/shared-models-py
+**/*.glsl

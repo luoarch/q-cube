@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const rankingItemSchema = z.object({
   ticker: z.string(),
@@ -10,8 +10,10 @@ export const rankingItemSchema = z.object({
   marketCap: z.number(),
   price: z.number().nullable(),
   change: z.number().nullable(),
-  quality: z.enum(["high", "medium", "low"]),
-  liquidity: z.enum(["high", "medium", "low"]),
+  quality: z.enum(['high', 'medium', 'low']),
+  liquidity: z.enum(['high', 'medium', 'low']),
+  compositeScore: z.number().nullable().optional(),
+  qualityScore: z.number().nullable().optional(),
 });
 
 export const paginationMetaSchema = z.object({

@@ -1,5 +1,6 @@
-import { Global, Module } from "@nestjs/common";
-import { CacheService } from "./cache.service.js";
+import { Global, Module } from '@nestjs/common';
+
+import { CacheService } from './cache.service.js';
 
 @Global()
 @Module({

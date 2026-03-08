@@ -1,14 +1,15 @@
-import { z } from "zod";
-import { strategyTypeSchema, uuidSchema } from "./_shared.js";
+import { z } from 'zod';
 
-export const jobKindSchema = z.enum(["strategy_run", "backtest_run"]);
+import { strategyTypeSchema, uuidSchema } from './_shared.js';
+
+export const jobKindSchema = z.enum(['strategy_run', 'backtest_run']);
 
 export const strategyRunQueuedEventSchema = z.object({
   jobId: uuidSchema,
   runId: uuidSchema,
   tenantId: uuidSchema,
   strategy: strategyTypeSchema,
-  asOfDate: z.string().datetime().optional()
+  asOfDate: z.string().datetime().optional(),
 });
 
 export type JobKind = z.infer<typeof jobKindSchema>;

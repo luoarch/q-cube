@@ -1,12 +1,13 @@
-import { z } from "zod";
-import { uuidSchema } from "./_shared.js";
+import { z } from 'zod';
 
-export const membershipRoleSchema = z.enum(["owner", "admin", "member", "viewer"]);
+import { uuidSchema } from './_shared.js';
+
+export const membershipRoleSchema = z.enum(['owner', 'admin', 'member', 'viewer']);
 export type MembershipRole = z.infer<typeof membershipRoleSchema>;
 
 export const loginRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 

@@ -1,21 +1,23 @@
-import { Module } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { JwtModule } from "@nestjs/jwt";
-import type { JwtModuleOptions } from "@nestjs/jwt";
-import type { EnvConfig } from "../config/env.schema.js";
-import { AuthController } from "./auth.controller.js";
-import { AuthService } from "./auth.service.js";
-import { AuthGuard } from "./auth.guard.js";
-import { RoleGuard } from "./role.guard.js";
+import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+
+import { AuthController } from './auth.controller.js';
+import { AuthGuard } from './auth.guard.js';
+import { AuthService } from './auth.service.js';
+import { RoleGuard } from './role.guard.js';
+
+import type { EnvConfig } from '../config/env.schema.js';
+import type { JwtModuleOptions } from '@nestjs/jwt';
 
 @Module({
   imports: [
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig>): JwtModuleOptions => {
-        const expiry = config.get("JWT_EXPIRY", { infer: true })!;
+        const expiry = config.get('JWT_EXPIRY', { infer: true })!;
         return {
-          secret: config.get("JWT_SECRET", { infer: true })!,
+          secret: config.get('JWT_SECRET', { infer: true })!,
           signOptions: { expiresIn: expiry as `${number}m` },
         };
       },

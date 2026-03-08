@@ -1,5 +1,6 @@
-import { z } from "zod";
-import { runStatusSchema, strategyTypeSchema, uuidSchema } from "./_shared.js";
+import { z } from 'zod';
+
+import { runStatusSchema, strategyTypeSchema, uuidSchema } from './_shared.js';
 
 export const costModelSchema = z.object({
   fixedCostPerTrade: z.number().min(0).default(0),
@@ -11,7 +12,7 @@ export const backtestConfigSchema = z.object({
   strategyType: strategyTypeSchema,
   startDate: z.string().date(),
   endDate: z.string().date(),
-  rebalanceFreq: z.enum(["monthly", "quarterly"]).default("monthly"),
+  rebalanceFreq: z.enum(['monthly', 'quarterly']).default('monthly'),
   executionLagDays: z.number().int().min(0).default(1),
   topN: z.number().int().min(1).default(20),
   equalWeight: z.boolean().default(true),
@@ -46,7 +47,7 @@ export const backtestTradeSchema = z.object({
   shares: z.number(),
   price: z.number(),
   cost: z.number(),
-  side: z.enum(["buy", "sell"]),
+  side: z.enum(['buy', 'sell']),
 });
 
 export const backtestResultSchema = z.object({
@@ -86,7 +87,7 @@ export const walkForwardResultSchema = z.object({
       oosMetrics: backtestMetricsSchema,
       isPeriod: z.object({ start: z.string(), end: z.string() }),
       oosPeriod: z.object({ start: z.string(), end: z.string() }),
-    })
+    }),
   ),
   isAvg: backtestMetricsSchema.partial(),
   oosAvg: backtestMetricsSchema.partial(),
@@ -140,7 +141,7 @@ export const regimeSummarySchema = z.record(
     avgSharpe: z.number(),
     avgCagr: z.number(),
     avgMaxDd: z.number(),
-  })
+  }),
 );
 
 export const subperiodReportSchema = z.object({
@@ -222,7 +223,7 @@ export const purgedCVResultSchema = z.object({
       testPeriod: z.object({ start: z.string(), end: z.string() }),
       trainMetrics: backtestMetricsSchema.partial(),
       testMetrics: backtestMetricsSchema.partial(),
-    })
+    }),
   ),
   avgTrainMetrics: backtestMetricsSchema.partial(),
   avgTestMetrics: backtestMetricsSchema.partial(),
@@ -276,10 +277,12 @@ export const marginalContributionSchema = z.object({
 
 export const contributionReportSchema = z.object({
   baseVariant: z.string(),
-  variants: z.array(z.object({
-    variant: z.string(),
-    metrics: backtestMetricsSchema.partial(),
-  })),
+  variants: z.array(
+    z.object({
+      variant: z.string(),
+      metrics: backtestMetricsSchema.partial(),
+    }),
+  ),
   contributions: z.array(marginalContributionSchema),
   allPositive: z.boolean(),
 });

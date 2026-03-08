@@ -1,14 +1,10 @@
-import {
-  Global,
-  Logger,
-  Module,
-  type OnModuleDestroy,
-  Inject
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Redis } from "ioredis";
-import { REDIS } from "./redis.constants.js";
-import type { EnvConfig } from "../config/env.schema.js";
+import { Global, Logger, Module, type OnModuleDestroy, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Redis } from 'ioredis';
+
+import { REDIS } from './redis.constants.js';
+
+import type { EnvConfig } from '../config/env.schema.js';
 
 @Global()
 @Module({
@@ -17,14 +13,14 @@ import type { EnvConfig } from "../config/env.schema.js";
       provide: REDIS,
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig>) => {
-        return new Redis(config.get("REDIS_URL", { infer: true })!, {
+        return new Redis(config.get('REDIS_URL', { infer: true })!, {
           maxRetriesPerRequest: 2,
-          lazyConnect: true
+          lazyConnect: true,
         });
-      }
-    }
+      },
+    },
   ],
-  exports: [REDIS]
+  exports: [REDIS],
 })
 export class RedisModule implements OnModuleDestroy {
   private readonly logger = new Logger(RedisModule.name);
@@ -32,7 +28,7 @@ export class RedisModule implements OnModuleDestroy {
   constructor(@Inject(REDIS) private readonly redis: Redis) {}
 
   async onModuleDestroy() {
-    this.logger.log("Closing Redis connection…");
+    this.logger.log('Closing Redis connection…');
     await this.redis.quit();
   }
 }

@@ -1,31 +1,28 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { JwtService } from "@nestjs/jwt";
+import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import {
   loginResponseSchema,
   refreshResponseSchema,
   authMeResponseSchema,
   type LoginRequest,
   type RefreshRequest,
-} from "@q3/shared-contracts";
-import * as bcrypt from "bcryptjs";
-import { asc, eq } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import { memberships, users } from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import type { EnvConfig } from "../config/env.schema.js";
+} from '@q3/shared-contracts';
+import * as bcrypt from 'bcryptjs';
+import { asc, eq } from 'drizzle-orm';
+
+import { DB } from '../database/database.constants.js';
+import { memberships, users } from '../db/schema.js';
+
+import type { EnvConfig } from '../config/env.schema.js';
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 export interface JwtPayload {
   sub: string;
   tenantId: string;
   role: string;
-  type?: "access" | "refresh";
+  type?: 'access' | 'refresh';
 }
 
 @Injectable()
@@ -40,9 +37,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<EnvConfig>,
   ) {
-    this.maxAttempts = this.config.get("LOGIN_MAX_ATTEMPTS", { infer: true })!;
-    this.lockoutMinutes = this.config.get("LOGIN_LOCKOUT_MINUTES", { infer: true })!;
-    this.refreshExpiry = this.config.get("JWT_REFRESH_EXPIRY", { infer: true })!;
+    this.maxAttempts = this.config.get('LOGIN_MAX_ATTEMPTS', { infer: true })!;
+    this.lockoutMinutes = this.config.get('LOGIN_LOCKOUT_MINUTES', { infer: true })!;
+    this.refreshExpiry = this.config.get('JWT_REFRESH_EXPIRY', { infer: true })!;
   }
 
   async login(input: LoginRequest) {
@@ -66,11 +63,11 @@ export class AuthService {
     const user = rows[0];
 
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException("Account temporarily locked. Please try again later.");
+      throw new UnauthorizedException('Account temporarily locked. Please try again later.');
     }
 
     const valid = await bcrypt.compare(input.password, user.passwordHash);
@@ -78,9 +75,7 @@ export class AuthService {
     if (!valid) {
       const attempts = user.failedLoginAttempts + 1;
       const lockedUntil =
-        attempts >= this.maxAttempts
-          ? new Date(Date.now() + this.lockoutMinutes * 60_000)
-          : null;
+        attempts >= this.maxAttempts ? new Date(Date.now() + this.lockoutMinutes * 60_000) : null;
 
       await this.db
         .update(users)
@@ -95,7 +90,7 @@ export class AuthService {
         this.logger.warn(`Account locked for user ${user.id} after ${attempts} failed attempts`);
       }
 
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     // Reset failed attempts on success
@@ -116,11 +111,11 @@ export class AuthService {
 
     const accessToken = await this.jwtService.signAsync({
       ...tokenPayload,
-      type: "access",
+      type: 'access',
     });
 
     const refreshToken = await this.jwtService.signAsync(
-      { sub: user.id, type: "refresh" },
+      { sub: user.id, type: 'refresh' },
       { expiresIn: this.refreshExpiry as `${number}d` },
     );
 
@@ -142,11 +137,11 @@ export class AuthService {
     try {
       payload = await this.jwtService.verifyAsync<JwtPayload>(input.refreshToken);
     } catch {
-      throw new UnauthorizedException("Invalid refresh token");
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (payload.type !== "refresh") {
-      throw new UnauthorizedException("Invalid token type");
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid token type');
     }
 
     // Lookup user and verify not locked
@@ -165,22 +160,22 @@ export class AuthService {
 
     const user = rows[0];
     if (!user) {
-      throw new UnauthorizedException("User not found");
+      throw new UnauthorizedException('User not found');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException("Account temporarily locked");
+      throw new UnauthorizedException('Account temporarily locked');
     }
 
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       tenantId: user.tenantId,
       role: user.role,
-      type: "access",
+      type: 'access',
     });
 
     const refreshToken = await this.jwtService.signAsync(
-      { sub: user.id, type: "refresh" },
+      { sub: user.id, type: 'refresh' },
       { expiresIn: this.refreshExpiry as `${number}d` },
     );
 
@@ -204,7 +199,7 @@ export class AuthService {
 
     const user = rows[0];
     if (!user) {
-      throw new UnauthorizedException("User not found");
+      throw new UnauthorizedException('User not found');
     }
 
     return authMeResponseSchema.parse({

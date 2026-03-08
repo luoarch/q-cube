@@ -1,12 +1,18 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { eq, sql, desc, and } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { DB } from "../database/database.constants.js";
-import { CacheService } from "../common/cache.service.js";
-import { assets, financialStatements, strategyRuns } from "../db/schema.js";
-import type * as schema from "../db/schema.js";
-import { RankingService } from "../ranking/ranking.service.js";
-import { UNKNOWN_SECTOR, dashboardSummarySchema, type DashboardSummary } from "@q3/shared-contracts";
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  UNKNOWN_SECTOR,
+  dashboardSummarySchema,
+  type DashboardSummary,
+} from '@q3/shared-contracts';
+import { eq, sql, desc, and } from 'drizzle-orm';
+
+import { CacheService } from '../common/cache.service.js';
+import { DB } from '../database/database.constants.js';
+import { assets, financialStatements, strategyRuns } from '../db/schema.js';
+import { RankingService } from '../ranking/ranking.service.js';
+
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const DASHBOARD_CACHE_TTL = 300; // 5 minutes
 
@@ -46,10 +52,10 @@ export class DashboardService {
     const totalRuns = runCountRows[0]?.count ?? 0;
 
     const kpis = [
-      { label: "Total Assets", value: totalAssets, format: "number" as const },
-      { label: "Avg ROC", value: Math.round(avgRoic * 10000) / 100, format: "percent" as const },
-      { label: "Avg EY", value: Math.round(avgEY * 10000) / 100, format: "percent" as const },
-      { label: "Strategy Runs", value: totalRuns, format: "number" as const },
+      { label: 'Total Assets', value: totalAssets, format: 'number' as const },
+      { label: 'Avg ROC', value: Math.round(avgRoic * 10000) / 100, format: 'percent' as const },
+      { label: 'Avg EY', value: Math.round(avgEY * 10000) / 100, format: 'percent' as const },
+      { label: 'Strategy Runs', value: totalRuns, format: 'number' as const },
     ];
 
     // Pipeline status from latest strategy run
@@ -63,10 +69,11 @@ export class DashboardService {
     const pipelineStatus = latestRun
       ? {
           stage: latestRun.status,
-          progress: latestRun.status === "completed" ? 100 : latestRun.status === "running" ? 50 : 0,
+          progress:
+            latestRun.status === 'completed' ? 100 : latestRun.status === 'running' ? 50 : 0,
           lastRun: latestRun.createdAt.toISOString(),
         }
-      : { stage: "idle", progress: 0, lastRun: null };
+      : { stage: 'idle', progress: 0, lastRun: null };
 
     // Top ranked (reuse ranking service, take top 5)
     const ranking = await this.rankingService.getRanking(tenantId);
@@ -84,11 +91,17 @@ export class DashboardService {
       const s = item.sector || UNKNOWN_SECTOR;
       sectorDist.set(s, (sectorDist.get(s) ?? 0) + 1);
     }
-    const sectorDistribution = Array.from(sectorDist.entries()).map(
-      ([name, value]) => ({ name, value })
-    );
+    const sectorDistribution = Array.from(sectorDist.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
 
-    const result = dashboardSummarySchema.parse({ kpis, pipelineStatus, topRanked, sectorDistribution });
+    const result = dashboardSummarySchema.parse({
+      kpis,
+      pipelineStatus,
+      topRanked,
+      sectorDistribution,
+    });
     await this.cache.set(cacheKey, result, DASHBOARD_CACHE_TTL);
     return result;
   }

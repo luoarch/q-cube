@@ -1,10 +1,11 @@
-import { z } from "zod";
+import { z } from 'zod';
+
 import {
   batchStatusSchema,
   filingStatusSchema,
   filingTypeSchema,
-  sourceProviderSchema
-} from "./enums.js";
+  sourceProviderSchema,
+} from './enums.js';
 
 export const rawSourceBatchSchema = z.object({
   id: z.string().uuid(),
@@ -13,7 +14,7 @@ export const rawSourceBatchSchema = z.object({
   documentType: filingTypeSchema,
   status: batchStatusSchema,
   startedAt: z.string().datetime(),
-  completedAt: z.string().datetime().nullable()
+  completedAt: z.string().datetime().nullable(),
 });
 
 export const rawSourceFileSchema = z.object({
@@ -23,7 +24,7 @@ export const rawSourceFileSchema = z.object({
   url: z.string(),
   sha256Hash: z.string(),
   sizeBytes: z.number().int(),
-  importedAt: z.string().datetime()
+  importedAt: z.string().datetime(),
 });
 
 export const filingSchema = z.object({
@@ -39,7 +40,7 @@ export const filingSchema = z.object({
   rawFileId: z.string().uuid().nullable(),
   validationResult: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 });
 
 export type RawSourceBatch = z.infer<typeof rawSourceBatchSchema>;
