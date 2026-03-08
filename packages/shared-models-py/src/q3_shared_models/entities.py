@@ -562,6 +562,30 @@ class CouncilSynthesis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class UserContextProfile(Base):
+    __tablename__ = "user_context_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "tenant_id", name="uq_user_context_profiles_user_tenant"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    preferred_strategy: Mapped[str | None] = mapped_column(String)
+    watchlist_json: Mapped[dict | None] = mapped_column(JSONB)
+    preferences_json: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class Embedding(Base):
     __tablename__ = "embeddings"
     __table_args__ = (

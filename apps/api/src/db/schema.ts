@@ -618,3 +618,26 @@ export const councilSyntheses = pgTable('council_syntheses', {
   synthesisText: text('synthesis_text').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// User context profiles
+// ---------------------------------------------------------------------------
+
+export const userContextProfiles = pgTable(
+  'user_context_profiles',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    preferredStrategy: varchar('preferred_strategy', { length: 50 }),
+    watchlistJson: jsonb('watchlist_json'),
+    preferencesJson: jsonb('preferences_json'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique('uq_user_context_profiles_user_tenant').on(t.userId, t.tenantId)],
+);
