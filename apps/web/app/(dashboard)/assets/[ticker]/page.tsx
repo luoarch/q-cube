@@ -23,6 +23,20 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
         </Link>
         <h1>{ticker}</h1>
       </header>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+        <Link
+          href={`/intelligence/${ticker}`}
+          style={{ fontSize: 13, color: 'var(--accent-gold, #fbbf24)', textDecoration: 'none' }}
+        >
+          Intelligence →
+        </Link>
+        <Link
+          href={`/compare?tickers=${ticker}`}
+          style={{ fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}
+        >
+          Compare →
+        </Link>
+      </div>
       <div className="dashboard-scene">
         <FactorRadarScene ticker={ticker} />
       </div>
