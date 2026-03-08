@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -52,6 +52,7 @@ def _make_filing(
         version_number=version,
         is_restatement=version > 1,
         status=status,
+        available_at=datetime(ref_date.year + 1, 3, 1, tzinfo=timezone.utc),
     )
     session.add(filing)
     session.flush()

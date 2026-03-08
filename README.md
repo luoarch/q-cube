@@ -22,12 +22,12 @@ A full **Quant Strategy Lab** capable of:
 ### MVP scope (current)
 
 - **CVM-first fundamentals pipeline** — filing data (DFP/ITR) parsed, normalized, and stored with derived metrics (ROIC, EBITDA, margins, net_debt)
-- **Market snapshots** (opt-in via `ENABLE_BRAPI`) — brapi.dev quotes provide `market_cap` for Enterprise Value and Earnings Yield
+- **Market snapshots** — Yahoo/yfinance (default) or brapi.dev provide `market_cap` for Enterprise Value and Earnings Yield
 - **Magic Formula ranking** — requires both CVM fundamentals **and** market snapshots for the complete strategy
 - **Next.js scaffold** — auth UI + empty dashboard, no real product functionality yet
 - **Single-tenant** auth scaffold (multi-tenant schema ready, not enforced yet)
 
-> **Important:** Magic Formula = fundamentals + market snapshots. Without `ENABLE_BRAPI=true`, Enterprise Value and Earnings Yield cannot be calculated (`EV = market_cap + net_debt` requires market data). What exists without snapshots is the **CVM-first fundamentals pipeline** — ROIC, margins, EBITDA, net_debt — not the Magic Formula. The ranking falls back to EBIT margin + ROIC, which is a partial approximation.
+> **Important:** Magic Formula = fundamentals + market snapshots. Without market data (`ENABLE_YAHOO=true` or `ENABLE_BRAPI=true`), Enterprise Value and Earnings Yield cannot be calculated (`EV = market_cap + net_debt` requires market data). What exists without snapshots is the **CVM-first fundamentals pipeline** — ROIC, margins, EBITDA, net_debt — not the Magic Formula. The ranking falls back to EBIT margin + ROIC, which is a partial approximation.
 
 ### Post-MVP roadmap
 
@@ -72,7 +72,7 @@ PostgreSQL
 | **Raw filings** | CVM (DFP/ITR/FCA) | `raw_source_batches` + `raw_source_files` | Audit trail / data lake |
 | **Canonical fundamentals** | CVM → normalization pipeline | `issuers` + `filings` + `statement_lines` | Issuer-centric financial data |
 | **Computed metrics** | Derived from statement_lines | `computed_metrics` | ROIC, EBITDA, margins, net_debt |
-| **Market snapshots** | brapi.dev quotes | `market_snapshots` | Price, market_cap, volume per security |
+| **Market snapshots** | Yahoo/yfinance (primary), brapi.dev (fallback) | `market_snapshots` | Price, market_cap, volume per security |
 | **Market-derived metrics** | market_cap + filing data | `computed_metrics` (EV, earnings yield) | Requires both CVM + snapshot data |
 
 ### Fundamentals pipeline
@@ -148,7 +148,7 @@ Return on Capital = EBIT / (Net Working Capital + Fixed Assets)
 Ranking = Rank(EY) + Rank(ROC)
 ```
 
-> **Requires `market_cap` from market snapshots** (`ENABLE_BRAPI=true`). Without market data, EV cannot be calculated, EY remains NULL, and the strategy falls back to EBIT margin + ROIC (partial approximation). The CVM-first fundamentals pipeline provides the accounting base (ROIC, margins, net_debt, EBITDA), but the complete Magic Formula needs both CVM + brapi.dev data.
+> **Requires `market_cap` from market snapshots** (`ENABLE_YAHOO=true` or `ENABLE_BRAPI=true`). Without market data, EV cannot be calculated, EY remains NULL, and the strategy falls back to EBIT margin + ROIC (partial approximation). The CVM-first fundamentals pipeline provides the accounting base (ROIC, margins, net_debt, EBITDA), but the complete Magic Formula needs both CVM + market snapshot data.
 
 ### 2 — Magic Formula Brasil (post-MVP)
 
@@ -162,30 +162,47 @@ Additional factors: quality score, momentum, ROIC, Debt/EBITDA, margin stability
 
 ## Data sources
 
+### Source-of-Truth Policy
+
+| Domain | Source | Notes |
+|--------|--------|-------|
+| Fundamentals (filings, statements) | CVM | Sole source of truth for accounting data |
+| Market snapshots (price, market_cap, volume) | Yahoo/yfinance | Free, no token, default provider |
+| Market snapshots (fallback) | brapi.dev | Retained as alternative, requires token |
+
 ### Source priority
 
 ```text
-CVM raw (audit trail) → Dados de Mercado (primary fundamentals) → brapi.dev (market quotes)
+CVM raw (audit trail) → Dados de Mercado (primary fundamentals) → Yahoo/yfinance (market quotes)
 ```
 
-Feature flags control which sources are active: `ENABLE_CVM`, `ENABLE_BRAPI`, `ENABLE_DADOS_MERCADO`.
+Feature flags control which sources are active: `ENABLE_CVM`, `ENABLE_YAHOO`, `ENABLE_BRAPI`, `ENABLE_DADOS_MERCADO`.
+
+`MARKET_SNAPSHOT_SOURCE` selects the active market data provider (default: `yahoo`).
 
 ### CVM — source of truth
 
-All fundamental data originates from CVM (Comissão de Valores Mobiliários) public filings.
+All fundamental data originates from CVM (Comissao de Valores Mobiliarios) public filings.
 
 - **DFP** (annual) and **ITR** (quarterly) filings provide financial statements
 - **FCA** provides issuer metadata and ticker mapping
 - **Cadastro** provides sector classification
 - **Restatements** are detected and handled — superseded filings are marked, affected metrics invalidated
 
-### brapi.dev — market snapshots (opt-in)
+### Yahoo/yfinance — market snapshots (default)
 
-- Activated via `ENABLE_BRAPI=true`
+- Activated via `ENABLE_YAHOO=true` (default ON)
 - Provides `market_cap`, price, volume per security
-- Free tier: 15k requests/month (~439 issuers)
-- **Staleness policy**: snapshots older than 7 days are treated as stale (NULLed in compat view, skipped in metric computation)
+- Free, no API token required
+- Ticker mapping: B3 tickers get `.SA` suffix inside the adapter
+- **Staleness policy**: snapshots older than `SNAPSHOT_STALENESS_DAYS` (default 7) are treated as stale
 - Endpoint: `POST /batches/snapshots/refresh`
+
+### brapi.dev — market snapshots (fallback)
+
+- Activated via `ENABLE_BRAPI=true` + `MARKET_SNAPSHOT_SOURCE=brapi`
+- Free tier: 15k requests/month
+- Requires `BRAPI_TOKEN` in `.env`
 
 ---
 

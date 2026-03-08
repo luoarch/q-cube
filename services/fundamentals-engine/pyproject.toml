@@ -16,7 +16,8 @@ dependencies = [
   "httpx>=0.28.0",
   "sqlalchemy>=2.0.48",
   "psycopg[binary]>=3.3.3",
-  "q3-shared-models"
+  "q3-shared-models",
+  "yfinance>=0.2.40"
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,11 @@ dev = [
 
 [project.scripts]
 q3-fundamentals-engine = "q3_fundamentals_engine.__main__:main"
+
+[tool.pytest.ini_options]
+markers = [
+  "live: live smoke tests requiring internet (deselect with '-m not live')",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

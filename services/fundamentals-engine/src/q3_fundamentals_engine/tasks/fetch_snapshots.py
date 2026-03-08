@@ -19,30 +19,39 @@ from q3_shared_models.entities import (
 from sqlalchemy import select
 
 from q3_fundamentals_engine.celery_app import celery_app
-from q3_fundamentals_engine.config import ENABLE_BRAPI
+from q3_fundamentals_engine.config import ENABLE_BRAPI, ENABLE_YAHOO, MARKET_SNAPSHOT_SOURCE, SNAPSHOT_STALENESS_DAYS
 from q3_fundamentals_engine.db.session import SessionLocal
 from q3_fundamentals_engine.metrics.engine import MetricsEngine
 from q3_fundamentals_engine.pipeline_steps import step_refresh_compat_view
-from q3_fundamentals_engine.providers.brapi.adapter import BrapiProviderAdapter
+from q3_fundamentals_engine.providers.market_snapshot_factory import MarketSnapshotProviderFactory
 
 logger = logging.getLogger(__name__)
 
 # Snapshots older than this are considered stale and won't feed metrics
-SNAPSHOT_STALENESS = timedelta(days=7)
+SNAPSHOT_STALENESS = timedelta(days=SNAPSHOT_STALENESS_DAYS)
+
+# Which sources are enabled for snapshot fetching
+_SOURCE_ENABLED: dict[str, bool] = {
+    "yahoo": ENABLE_YAHOO,
+    "brapi": ENABLE_BRAPI,
+}
 
 
 @celery_app.task(name="q3_fundamentals_engine.tasks.fetch_snapshots.fetch_market_snapshots")
 def fetch_market_snapshots() -> dict:
-    """Fetch market snapshots from brapi for all active primary securities.
+    """Fetch market snapshots for all active primary securities.
 
+    Uses the configured MARKET_SNAPSHOT_SOURCE (default: yahoo).
     After fetching, chains compute_market_metrics to recompute EV/earnings yield.
     """
-    if not ENABLE_BRAPI:
-        return {"skipped": True, "reason": "ENABLE_BRAPI=false"}
+    source = MARKET_SNAPSHOT_SOURCE
+    if not _SOURCE_ENABLED.get(source, False):
+        return {"skipped": True, "reason": f"ENABLE_{source.upper()}=false"}
 
     session = SessionLocal()
     try:
-        adapter = BrapiProviderAdapter()
+        adapter = MarketSnapshotProviderFactory.create(source)
+        source_enum = SourceProvider[source]
 
         securities = session.execute(
             select(Security).where(
@@ -51,40 +60,58 @@ def fetch_market_snapshots() -> dict:
             )
         ).scalars().all()
 
+        logger.info("fetch_market_snapshots: starting batch for %d securities (source=%s)", len(securities), source)
+
         loop = asyncio.new_event_loop()
         snapshots_created = 0
+        failures = 0
+        null_market_cap = 0
         try:
             for sec in securities:
                 try:
-                    quote = loop.run_until_complete(adapter.get_quote(sec.ticker))
+                    snap_data = loop.run_until_complete(adapter.get_snapshot(sec.ticker))
                 except Exception:
-                    logger.warning("brapi quote failed for %s", sec.ticker, exc_info=True)
+                    logger.warning("snapshot failed for %s (source=%s)", sec.ticker, source, exc_info=True)
+                    failures += 1
                     continue
 
-                if quote:
+                if snap_data:
+                    if snap_data.market_cap is None:
+                        null_market_cap += 1
                     snapshot = MarketSnapshot(
                         id=uuid.uuid4(),
                         security_id=sec.id,
-                        source=SourceProvider.brapi,
-                        price=quote.get("regularMarketPrice"),
-                        market_cap=quote.get("marketCap"),
-                        volume=quote.get("regularMarketVolume"),
-                        raw_json=quote,
+                        source=source_enum,
+                        price=snap_data.price,
+                        market_cap=snap_data.market_cap,
+                        volume=snap_data.volume,
+                        raw_json=snap_data.raw_json,
                     )
                     session.add(snapshot)
                     snapshots_created += 1
+                else:
+                    failures += 1
 
-                time.sleep(0.2)  # rate limiting brapi free tier
+                time.sleep(0.3)  # rate limiting
         finally:
             loop.close()
 
         session.commit()
-        logger.info("created %d market snapshots", snapshots_created)
+        logger.info(
+            "fetch_market_snapshots: done — created=%d, null_market_cap=%d, failures=%d, total=%d",
+            snapshots_created, null_market_cap, failures, len(securities),
+        )
 
         # Chain: recompute market-dependent metrics
         compute_market_metrics.delay()
 
-        return {"snapshots_created": snapshots_created}
+        return {
+            "source": source,
+            "snapshots_created": snapshots_created,
+            "null_market_cap": null_market_cap,
+            "failures": failures,
+            "total_securities": len(securities),
+        }
 
     except Exception:
         session.rollback()

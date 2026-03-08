@@ -56,7 +56,7 @@ def create_cvm_batch(year: int, doc_types: list[str] | None = None) -> dict[str,
 
 @router.post("/snapshots/refresh")
 def refresh_snapshots() -> dict[str, str]:
-    """Enqueue a market snapshot refresh from brapi."""
+    """Enqueue a market snapshot refresh using the configured provider (default: yahoo)."""
     fetch_market_snapshots.delay()
     return {"status": "enqueued"}
 

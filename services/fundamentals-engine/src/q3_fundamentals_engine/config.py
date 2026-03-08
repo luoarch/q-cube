@@ -18,6 +18,11 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 ENABLE_CVM = _flag("ENABLE_CVM", "true")
 ENABLE_BRAPI = _flag("ENABLE_BRAPI", "false")
 ENABLE_DADOS_MERCADO = _flag("ENABLE_DADOS_MERCADO", "false")
+ENABLE_YAHOO = _flag("ENABLE_YAHOO", "true")
+
+# --- Market snapshot source selection ---
+MARKET_SNAPSHOT_SOURCE = os.getenv("MARKET_SNAPSHOT_SOURCE", "yahoo")
+SNAPSHOT_STALENESS_DAYS = int(os.getenv("SNAPSHOT_STALENESS_DAYS", "7"))
 
 # --- Canonical fundamentals migration flag ---
 USE_CANONICAL_FUNDAMENTALS = _flag("USE_CANONICAL_FUNDAMENTALS", "false")

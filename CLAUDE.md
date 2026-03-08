@@ -105,14 +105,17 @@ All queries must scope by `tenantId`. Tables use UUID PKs and cascade deletes fr
 
 ### Market data separation
 
-Filing data (CVM) and market snapshots (brapi.dev) are kept separate:
+Filing data (CVM) and market snapshots (Yahoo/yfinance) are kept separate:
 
 - **Filing data**: CVM raw filings → parsed → normalized into `filings` + `statement_lines` → derived `computed_metrics`
-- **Market snapshots**: brapi.dev quotes → `market_snapshots` table (keyed by `security_id`), provides `market_cap` for EV/earnings yield
-- **Staleness**: snapshots older than 7 days are treated as stale — compat view NULLs out `market_cap`/`avg_daily_volume`, and `compute_market_metrics` skips them
+- **Market snapshots**: Yahoo/yfinance (default) or brapi.dev → `market_snapshots` table (keyed by `security_id`), provides `market_cap` for EV/earnings yield
+- **Provider selection**: `MARKET_SNAPSHOT_SOURCE=yahoo` (default). Switch to `brapi` via env var. Factory: `MarketSnapshotProviderFactory.create()`
+- **Config flags**: `ENABLE_YAHOO=true` (default ON), `ENABLE_BRAPI=false`. `SNAPSHOT_STALENESS_DAYS=7`
+- **Adapter policy**: never import `yfinance` outside `providers/yahoo/adapter.py` — all Yahoo conventions (`.SA` suffix) stay inside the adapter
+- **Staleness**: snapshots older than `SNAPSHOT_STALENESS_DAYS` are treated as stale — compat view NULLs out `market_cap`/`avg_daily_volume`, and `compute_market_metrics` skips them
 - **Primary security**: EV/EY metrics use the issuer's `is_primary=true` security. Unique key: `(issuer_id, metric_code, period_type, reference_date)` — one active value per issuer
 - **Idempotency**: `MetricsEngine._upsert_metric()` uses `SELECT FOR UPDATE` + UPDATE/INSERT — works with SQLAlchemy identity map and serializes concurrent writes. Unique index `(issuer_id, metric_code, period_type, reference_date)` is the final safety net
-- **`ENABLE_BRAPI=true`**: activates market snapshot fetching; `POST /batches/snapshots/refresh` triggers the pipeline
+- **`POST /batches/snapshots/refresh`**: triggers snapshot fetch using the configured provider
 - **Pipeline steps**: shared via `pipeline_steps.py` — both `facade.py` and `import_batch.py` task use the same step functions
 
 ## Stack Versions

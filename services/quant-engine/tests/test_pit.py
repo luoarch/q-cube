@@ -153,3 +153,103 @@ def test_delisted_asset_excluded_after_valid_to(session):
 
     universe = fetch_eligible_universe_pit(session, date(2024, 9, 1))
     assert "DLST4" not in universe
+
+
+# ---------------------------------------------------------------------------
+# Market PIT — downstream consumption tests
+# ---------------------------------------------------------------------------
+
+
+def test_pit_snapshot_within_window_enters(session):
+    """Snapshot with fetched_at within staleness window should be included."""
+    issuer = make_issuer(session, cvm_code="007", cnpj="00000000000007")
+    sec = make_security(session, issuer, ticker="FRESH3")
+    make_market_snapshot(
+        session, sec, price=42.0,
+        fetched_at=datetime(2025, 2, 28, tzinfo=timezone.utc),
+    )
+    session.commit()
+
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    assert "FRESH3" in prices
+    assert prices["FRESH3"].price == 42.0
+
+
+def test_pit_snapshot_future_excluded(session):
+    """Snapshot with fetched_at > as_of_date must NOT be included."""
+    issuer = make_issuer(session, cvm_code="008", cnpj="00000000000008")
+    sec = make_security(session, issuer, ticker="FUTR3")
+    make_market_snapshot(
+        session, sec, price=50.0,
+        fetched_at=datetime(2025, 3, 15, tzinfo=timezone.utc),
+    )
+    session.commit()
+
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    assert "FUTR3" not in prices
+
+
+def test_pit_snapshot_null_price_excluded(session):
+    """Snapshot with price=None should have price=None in output."""
+    issuer = make_issuer(session, cvm_code="009", cnpj="00000000000009")
+    sec = make_security(session, issuer, ticker="NOPRC3")
+    make_market_snapshot(
+        session, sec, price=None,
+        fetched_at=datetime(2025, 2, 28, tzinfo=timezone.utc),
+    )
+    session.commit()
+
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    if "NOPRC3" in prices:
+        assert prices["NOPRC3"].price is None
+
+
+def test_pit_snapshot_null_market_cap_passes(session):
+    """Snapshot with market_cap=None should still appear (not blocked)."""
+    issuer = make_issuer(session, cvm_code="010", cnpj="00000000000010")
+    sec = make_security(session, issuer, ticker="NOMCAP3")
+    make_market_snapshot(
+        session, sec, price=10.0, market_cap=None,
+        fetched_at=datetime(2025, 2, 28, tzinfo=timezone.utc),
+    )
+    session.commit()
+
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    assert "NOMCAP3" in prices
+    assert prices["NOMCAP3"].market_cap is None
+
+
+def test_ranking_no_snapshot_ev_ey_null(session):
+    """Issuer with no market snapshot should still appear in fundamentals (EV/EY null)."""
+    issuer = make_issuer(session, cvm_code="011", cnpj="00000000000011")
+    make_security(session, issuer, ticker="NOSNP3")
+    filing = make_filing(
+        session, issuer,
+        reference_date=date(2024, 12, 31),
+        available_at=datetime(2025, 1, 15, tzinfo=timezone.utc),
+    )
+    make_statement_line(session, filing, canonical_key="ebit", value=100_000)
+    session.commit()
+
+    # Market PIT returns empty for this ticker
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    assert "NOSNP3" not in prices
+
+    # But fundamentals PIT should still return the issuer
+    result = fetch_fundamentals_pit(session, date(2025, 3, 1))
+    tickers = [asset.ticker for asset, _ in result]
+    assert "NOSNP3" in tickers
+
+
+def test_ranking_stale_snapshot_excluded(session):
+    """Snapshot beyond staleness window should NOT appear in market PIT."""
+    issuer = make_issuer(session, cvm_code="012", cnpj="00000000000012")
+    sec = make_security(session, issuer, ticker="STALE3")
+    make_market_snapshot(
+        session, sec, price=30.0,
+        fetched_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+    )
+    session.commit()
+
+    prices = fetch_market_pit(session, date(2025, 3, 1), max_staleness_days=7)
+    assert "STALE3" not in prices

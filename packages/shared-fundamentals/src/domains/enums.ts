@@ -36,7 +36,8 @@ export const sourceProviderSchema = z.enum([
   "cvm",
   "brapi",
   "dados_de_mercado",
-  "manual"
+  "manual",
+  "yahoo"
 ]);
 
 export const metricCodeSchema = z.enum([

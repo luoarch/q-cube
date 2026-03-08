@@ -8,6 +8,7 @@ from q3_fundamentals_engine.config import (
     ENABLE_BRAPI,
     ENABLE_CVM,
     ENABLE_DADOS_MERCADO,
+    ENABLE_YAHOO,
     FUNDAMENTALS_SOURCE_ISSUER_MASTER,
     FUNDAMENTALS_SOURCE_MARKET_DATA,
     FUNDAMENTALS_SOURCE_STATEMENTS,
@@ -31,6 +32,7 @@ _FLAG_MAP: dict[str, bool] = {
     "cvm": ENABLE_CVM,
     "brapi": ENABLE_BRAPI,
     "dados_de_mercado": ENABLE_DADOS_MERCADO,
+    "yahoo": ENABLE_YAHOO,
 }
 
 

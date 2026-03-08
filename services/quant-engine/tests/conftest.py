@@ -172,9 +172,9 @@ def make_market_snapshot(
     session: Session,
     security: Security,
     *,
-    price: float = 25.0,
-    market_cap: float = 1_000_000_000.0,
-    volume: float = 5_000_000.0,
+    price: float | None = 25.0,
+    market_cap: float | None = 1_000_000_000.0,
+    volume: float | None = 5_000_000.0,
     fetched_at: datetime | None = None,
 ) -> MarketSnapshot:
     if fetched_at is None:
@@ -182,7 +182,7 @@ def make_market_snapshot(
     snap = MarketSnapshot(
         id=uuid.uuid4(),
         security_id=security.id,
-        source=SourceProvider.brapi,
+        source=SourceProvider.yahoo,
         price=price,
         market_cap=market_cap,
         volume=volume,

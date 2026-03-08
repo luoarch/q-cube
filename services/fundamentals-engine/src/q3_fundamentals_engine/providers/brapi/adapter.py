@@ -10,6 +10,8 @@ from q3_fundamentals_engine.config import BRAPI_BASE_URL, BRAPI_TOKEN
 from q3_fundamentals_engine.providers.base import (
     DownloadedFile,
     FundamentalsProviderAdapter,
+    MarketSnapshotData,
+    OHLCVRecord,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,3 +54,35 @@ class BrapiProviderAdapter(FundamentalsProviderAdapter):
         if quote is None:
             return None
         return quote.get("marketCap")
+
+    # -- MarketSnapshotProvider protocol methods --
+
+    async def get_snapshot(self, ticker: str) -> MarketSnapshotData | None:
+        """Return a normalized market snapshot from brapi quote data."""
+        quote = await self.get_quote(ticker)
+        if not quote or quote.get("regularMarketPrice") is None:
+            return None
+        return MarketSnapshotData(
+            ticker=ticker,
+            price=quote.get("regularMarketPrice"),
+            market_cap=quote.get("marketCap"),
+            volume=quote.get("regularMarketVolume"),
+            currency=quote.get("currency", "BRL"),
+            raw_json=quote,
+        )
+
+    async def get_snapshots_batch(self, tickers: list[str]) -> list[MarketSnapshotData]:
+        """Fetch snapshots for multiple tickers; skip failures."""
+        results: list[MarketSnapshotData] = []
+        for ticker in tickers:
+            try:
+                snap = await self.get_snapshot(ticker)
+                if snap is not None:
+                    results.append(snap)
+            except Exception:
+                logger.warning("brapi snapshot failed for %s", ticker, exc_info=True)
+        return results
+
+    async def get_historical(self, ticker: str, *, period: str = "3mo", interval: str = "1d") -> list[OHLCVRecord]:
+        """Not implemented — use Yahoo adapter for historical data."""
+        raise NotImplementedError("brapi historical not implemented — use Yahoo adapter")

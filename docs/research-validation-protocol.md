@@ -29,7 +29,10 @@ Uma estrategia so pode ser promovida se passar por **todos** estes blocos:
 
 - Dados **point-in-time**
 - Filings com **lag contabil explicito**
-- Snapshots de mercado com timestamp real
+- Snapshots de mercado com timestamp real (`fetched_at`), sourced from Yahoo/yfinance (7-day staleness window)
+- Snapshots podem ser parciais (`market_cap=None` para micro/small caps ou indices)
+- App nunca depende de fetch live na hora do ranking — usa apenas snapshots persistidos
+- Ranking usa apenas snapshots persistidos validos (dentro da janela de staleness)
 - Retificacoes respeitando data de disponibilidade
 - Sem uso de informacao que nao existia na data do rebalanceamento
 

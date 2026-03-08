@@ -17,6 +17,11 @@ DATABASE_URL = ensure_psycopg_url(os.getenv("DATABASE_URL", "postgresql://127.0.
 ENABLE_CVM = _flag("ENABLE_CVM", "true")             # CVM is the source of truth — on by default
 ENABLE_BRAPI = _flag("ENABLE_BRAPI", "false")         # brapi.dev — off until token configured
 ENABLE_DADOS_MERCADO = _flag("ENABLE_DADOS_MERCADO", "false")  # Dados de Mercado — off until token configured
+ENABLE_YAHOO = _flag("ENABLE_YAHOO", "true")          # Yahoo/yfinance — on by default (free, no token)
+
+# --- Market snapshot source selection ---
+MARKET_SNAPSHOT_SOURCE = os.getenv("MARKET_SNAPSHOT_SOURCE", "yahoo")
+SNAPSHOT_STALENESS_DAYS = int(os.getenv("SNAPSHOT_STALENESS_DAYS", "7"))
 
 # --- Dados de Mercado (primary for fundamentals) ---
 # API docs: https://www.dadosdemercado.com.br/api/docs
@@ -30,8 +35,8 @@ DADOS_MERCADO_TOKEN = os.getenv("DADOS_MERCADO_TOKEN", "")
 #
 # Plan limits:
 #   Gratuito: 15k req/month, 1 asset/req, 3mo history, NO fundamentals (BP/DRE/DFC)
-#   Startup (R$24.99/mo): 150k req/month, 10 assets/req, 1yr history, annual fundamentals
-#   Pro (R$49.99/mo): 500k req/month, 20 assets/req, 10yr+ history, full fundamentals
+#   Startup (R$59.99/mo): 150k req/month, 10 assets/req, 1yr history, annual fundamentals
+#   Pro (R$99.99/mo): 500k req/month, 20 assets/req, 10yr+ history, full fundamentals
 #
 # On free plan, only quote/list and quote/{ticker} work (basic price/volume/marketCap).
 # Modules (balanceSheetHistory, incomeStatementHistory, financialData, etc.) require Startup+.

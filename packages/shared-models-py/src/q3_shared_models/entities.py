@@ -61,6 +61,7 @@ class SourceProvider(str, enum.Enum):
     brapi = "brapi"
     dados_de_mercado = "dados_de_mercado"
     manual = "manual"
+    yahoo = "yahoo"
 
 
 # ---------------------------------------------------------------------------

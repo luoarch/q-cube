@@ -168,7 +168,7 @@ export const batchStatusEnum = pgEnum("batch_status", [
 export const scopeTypeEnum = pgEnum("scope_type", ["con", "ind"]);
 
 export const sourceProviderEnum = pgEnum("source_provider", [
-  "cvm", "brapi", "dados_de_mercado", "manual"
+  "cvm", "brapi", "dados_de_mercado", "manual", "yahoo"
 ]);
 
 // ---------------------------------------------------------------------------
