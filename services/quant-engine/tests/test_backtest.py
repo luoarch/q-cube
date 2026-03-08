@@ -63,3 +63,19 @@ def test_backtest_execution_lag_concept():
     for d in dates:
         exec_date = date(d.year, d.month, d.day + config.execution_lag_days)
         assert exec_date > d
+
+
+def test_lot_rounding():
+    """Shares rounded to lot size."""
+    from q3_quant_engine.backtest.engine import _round_to_lot
+    assert _round_to_lot(150, 100) == 100
+    assert _round_to_lot(99, 100) == 0
+    assert _round_to_lot(200, 100) == 200
+    assert _round_to_lot(350, 100) == 300
+    assert _round_to_lot(50, 1) == 50  # lot_size=1 means no rounding
+
+
+def test_lot_rounding_zero():
+    """Zero shares stays zero."""
+    from q3_quant_engine.backtest.engine import _round_to_lot
+    assert _round_to_lot(0, 100) == 0

@@ -100,7 +100,7 @@ Uma estrategia so pode ser promovida se passar por **todos** estes blocos:
 - [x] Definir regra padrao de execucao
 - [x] Aplicar custo fixo + custo proporcional
 - [x] Aplicar slippage parametrizavel
-- [ ] Modelar arredondamento e cash residual
+- [x] Modelar arredondamento e cash residual
 - [x] Definir benchmark oficial
 
 ---
@@ -121,7 +121,7 @@ Para tuning mais serio, usar validacao temporal com **purging/embargo** para red
 
 ### Backlog
 
-- [ ] Definir janelas oficiais do Q3
+- [x] Definir janelas oficiais do Q3
 - [x] Implementar walk-forward runner
 - [x] Implementar purged temporal split
 - [ ] Bloquear uso do OOS em tuning

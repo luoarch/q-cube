@@ -38,6 +38,7 @@ class BacktestConfig:
     benchmark: str | None = None
     min_market_cap: float | None = None  # Override MIN_MARKET_CAP if set
     min_avg_daily_volume: float | None = None  # Override MIN_AVG_DAILY_VOLUME if set
+    lot_size: int = 100  # B3 standard lot size
 
 
 @dataclass
@@ -205,6 +206,13 @@ def _rank_pit_data(
     return results
 
 
+def _round_to_lot(shares: int, lot_size: int) -> int:
+    """Round share count down to nearest lot size."""
+    if lot_size <= 1:
+        return shares
+    return (shares // lot_size) * lot_size
+
+
 def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
     """Execute a full backtest simulation.
 
@@ -290,14 +298,17 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
 
             if diff_value > 0:
                 # Buy
-                shares_to_buy = int(diff_value / price_data.price)
+                shares_to_buy = _round_to_lot(int(diff_value / price_data.price), config.lot_size)
                 if shares_to_buy <= 0:
                     holdings[ticker] = {"shares": current_shares, "last_price": price_data.price}
                     continue
                 trade_value = shares_to_buy * price_data.price
                 cost = config.cost_model.total_cost(trade_value)
                 if trade_value + cost > cash:
-                    shares_to_buy = int(cash / (price_data.price * (1 + config.cost_model.proportional_cost + config.cost_model.slippage_bps / 10_000)))
+                    shares_to_buy = _round_to_lot(
+                        int(cash / (price_data.price * (1 + config.cost_model.proportional_cost + config.cost_model.slippage_bps / 10_000))),
+                        config.lot_size,
+                    )
                     if shares_to_buy <= 0:
                         holdings[ticker] = {"shares": current_shares, "last_price": price_data.price}
                         continue
@@ -312,7 +323,7 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
                 })
             else:
                 # Sell excess
-                shares_to_sell = int(abs(diff_value) / price_data.price)
+                shares_to_sell = _round_to_lot(int(abs(diff_value) / price_data.price), config.lot_size)
                 if shares_to_sell <= 0:
                     holdings[ticker] = {"shares": current_shares, "last_price": price_data.price}
                     continue
