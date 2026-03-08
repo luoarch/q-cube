@@ -332,6 +332,26 @@ export const marketSnapshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Embeddings (RAG)
+// ---------------------------------------------------------------------------
+
+export const embeddings = pgTable(
+  'embeddings',
+  {
+    id: uuid('id').primaryKey(),
+    entityType: varchar('entity_type', { length: 50 }).notNull(),
+    entityId: varchar('entity_id', { length: 255 }).notNull(),
+    chunkIndex: integer('chunk_index').notNull().default(0),
+    chunkText: text('chunk_text').notNull(),
+    embedding: jsonb('embedding').notNull(), // VECTOR(1536) when pgvector extension is enabled
+    metadataJson: jsonb('metadata_json'),
+    modelUsed: varchar('model_used', { length: 50 }).notNull().default('text-embedding-3-small'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique('uq_embeddings_entity_chunk').on(t.entityType, t.entityId, t.chunkIndex)],
+);
+
+// ---------------------------------------------------------------------------
 // Refinement results (Top-30 Refiner)
 // ---------------------------------------------------------------------------
 

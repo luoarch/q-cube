@@ -21,6 +21,7 @@ dependencies = [
   "anthropic>=0.40.0",
   "google-genai>=1.0.0",
   "tenacity>=9.0.0",
+  "pgvector>=0.4.0",
   "q3-shared-models",
 ]
 

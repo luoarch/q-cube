@@ -562,6 +562,23 @@ class CouncilSynthesis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class Embedding(Base):
+    __tablename__ = "embeddings"
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", "chunk_index", name="uq_embeddings_entity_chunk"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String, nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list] = mapped_column(JSONB, nullable=False)  # VECTOR(1536) once pgvector extension is enabled
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)
+    model_used: Mapped[str] = mapped_column(String, nullable=False, server_default="text-embedding-3-small")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class MarketSnapshot(Base):
     __tablename__ = "market_snapshots"
     __table_args__ = (
