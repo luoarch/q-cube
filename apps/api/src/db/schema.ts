@@ -409,7 +409,7 @@ export const refinementResults = pgTable(
 // AI Assistant enums + tables
 // ---------------------------------------------------------------------------
 
-export const aiModuleEnum = pgEnum('ai_module', ['ranking_explainer', 'backtest_narrator']);
+export const aiModuleEnum = pgEnum('ai_module', ['ranking_explainer', 'backtest_narrator', 'metric_explainer']);
 
 export const aiReviewStatusEnum = pgEnum('review_status', [
   'pending',

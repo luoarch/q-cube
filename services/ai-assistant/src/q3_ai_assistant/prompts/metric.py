@@ -72,7 +72,7 @@ def build_user_prompt(
         f"## Metrica: {metric_code}",
         f"Definicao base: {definition}",
         f"\n## Valor atual: {current_value}",
-        f"\n## Serie historica (3 periodos):",
+        "\n## Serie historica (3 periodos):",
         json.dumps(trend_series, indent=2),
     ]
 

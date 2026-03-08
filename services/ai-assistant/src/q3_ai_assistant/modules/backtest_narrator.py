@@ -8,7 +8,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from q3_ai_assistant.evaluation.evaluator import QualityScore, evaluate_backtest_narrative
-from q3_ai_assistant.llm.adapter import LLMAdapter, LLMResponse
+from q3_ai_assistant.llm.adapter import LLMAdapter
 from q3_ai_assistant.llm.cache import LLMCache
 from q3_ai_assistant.models.entities import (
     AIModule,
