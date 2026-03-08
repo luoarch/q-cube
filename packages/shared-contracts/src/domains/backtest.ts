@@ -262,3 +262,27 @@ export type PurgedCVConfig = z.infer<typeof purgedCVConfigSchema>;
 export type PurgedCVResult = z.infer<typeof purgedCVResultSchema>;
 export type PromotionCheck = z.infer<typeof promotionCheckSchema>;
 export type PromotionResult = z.infer<typeof promotionResultSchema>;
+
+// --- Marginal Contribution ---
+
+export const marginalContributionSchema = z.object({
+  component: z.string(),
+  deltaSharpe: z.number(),
+  deltaCagr: z.number(),
+  deltaMaxDrawdown: z.number(),
+  deltaTurnover: z.number(),
+  positive: z.boolean(),
+});
+
+export const contributionReportSchema = z.object({
+  baseVariant: z.string(),
+  variants: z.array(z.object({
+    variant: z.string(),
+    metrics: backtestMetricsSchema.partial(),
+  })),
+  contributions: z.array(marginalContributionSchema),
+  allPositive: z.boolean(),
+});
+
+export type MarginalContribution = z.infer<typeof marginalContributionSchema>;
+export type ContributionReport = z.infer<typeof contributionReportSchema>;

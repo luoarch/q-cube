@@ -81,3 +81,34 @@ def test_information_ratio_with_benchmark():
     assert "tracking_error" in metrics
     # Strategy outperforms benchmark → positive excess return
     assert metrics["excess_return"] > 0
+
+
+def test_benchmark_excess_return():
+    """Excess return computed when benchmark provided."""
+    equity = [
+        {"date": "2024-01-01", "value": 100},
+        {"date": "2024-02-01", "value": 110},
+        {"date": "2024-03-01", "value": 115},
+    ]
+    bench = [
+        {"date": "2024-01-01", "value": 1000},
+        {"date": "2024-02-01", "value": 1050},
+        {"date": "2024-03-01", "value": 1080},
+    ]
+    metrics = compute_metrics(equity, [], benchmark_curve=bench)
+    assert "excess_return" in metrics
+    assert "tracking_error" in metrics
+    assert "information_ratio" in metrics
+    # Portfolio returned more than benchmark
+    assert metrics["excess_return"] > 0
+
+
+def test_no_benchmark_no_relative_metrics():
+    """Without benchmark, relative metrics absent."""
+    equity = [
+        {"date": "2024-01-01", "value": 100},
+        {"date": "2024-02-01", "value": 110},
+    ]
+    metrics = compute_metrics(equity, [])
+    assert "excess_return" not in metrics
+    assert "tracking_error" not in metrics

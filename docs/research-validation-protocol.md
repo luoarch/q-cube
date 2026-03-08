@@ -101,7 +101,7 @@ Uma estrategia so pode ser promovida se passar por **todos** estes blocos:
 - [x] Aplicar custo fixo + custo proporcional
 - [x] Aplicar slippage parametrizavel
 - [ ] Modelar arredondamento e cash residual
-- [ ] Definir benchmark oficial
+- [x] Definir benchmark oficial
 
 ---
 
@@ -210,8 +210,8 @@ Uma estrategia robusta nao deve depender de um parametro exato demais.
 ### Backlog
 
 - [x] Variar frequencia de rebalance
-- [ ] Variar liquidez minima
-- [ ] Variar market cap minimo
+- [x] Variar liquidez minima
+- [x] Variar market cap minimo
 - [x] Variar custos
 - [x] Variar slippage
 - [ ] Variar winzorizacao
@@ -231,10 +231,10 @@ Garantir que a implementacao bate com a definicao teorica.
 
 - [x] Testar que Brazil gates sao filtros, nao score
 - [x] Testar que core usa `EY + ROC` com pesos iguais
-- [ ] Testar que quality overlay usa apenas sinais disponiveis
-- [ ] Testar que ausencia de overlay nao corrompe score
+- [x] Testar que quality overlay usa apenas sinais disponiveis
+- [x] Testar que ausencia de overlay nao corrompe score
 - [x] Testar ordenacao asc/desc correta por metrica
-- [ ] Testar exclusao de financeiras/utilities
+- [x] Testar exclusao de financeiras/utilities
 - [x] Testar exclusao de `EBIT <= 0`
 - [x] Testar casos `EV <= 0`, `equity <= 0`, `net_income <= 0`
 
@@ -248,11 +248,11 @@ Provar que o overlay adiciona valor de verdade.
 
 ### Backlog
 
-- [ ] Backtest `core only`
-- [ ] Backtest `core + leverage`
-- [ ] Backtest `core + cash conversion`
-- [ ] Backtest `core + full quality overlay`
-- [ ] Medir contribuicao marginal em:
+- [x] Backtest `core only`
+- [x] Backtest `core + leverage`
+- [x] Backtest `core + cash conversion`
+- [x] Backtest `core + full quality overlay`
+- [x] Medir contribuicao marginal em:
   - retorno
   - drawdown
   - turnover
@@ -284,8 +284,8 @@ Cada experimento deve persistir:
 ### Backlog
 
 - [x] Criar schema `research_manifest.json`
-- [ ] Persistir constituents por rebalance
-- [ ] Persistir returns da carteira
+- [x] Persistir constituents por rebalance
+- [x] Persistir returns da carteira
 - [x] Persistir metricas agregadas
 - [ ] Persistir logs de dados usados
 - [x] Garantir rerun deterministico

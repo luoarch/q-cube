@@ -117,3 +117,56 @@ def test_gate_is_filter_not_score():
     order_without = [r.ticker for r in ranked_without]
     order_with = [r.ticker for r in ranked_with]
     assert order_without == order_with
+
+
+def test_quality_overlay_uses_available_signals():
+    """Hybrid variant uses debt_to_ebitda and cash_conversion when available."""
+    data = [
+        (_make_asset("A3"), _make_fs(ebit=100, ev=500, nwc=100, fa=100,
+                                     net_debt=Decimal("200"), ebitda=Decimal("150"),
+                                     cash_conversion=Decimal("0.8"))),
+        (_make_asset("B3"), _make_fs(ebit=100, ev=500, nwc=100, fa=100,
+                                     net_debt=Decimal("500"), ebitda=Decimal("100"),
+                                     cash_conversion=Decimal("0.3"))),
+    ]
+    ranked = _rank_pit_data(data, "magic_formula_hybrid")
+    # A3 has lower leverage (200/150=1.33) and higher cash conversion (0.8)
+    # So A3 should rank higher than B3
+    assert ranked[0].ticker == "A3"
+
+
+def test_no_overlay_does_not_corrupt_score():
+    """Hybrid variant without quality signals falls back to core-only score."""
+    data = [
+        (_make_asset("A3"), _make_fs(ebit=200, ev=400, nwc=50, fa=50)),
+        (_make_asset("B3"), _make_fs(ebit=100, ev=1000, nwc=100, fa=100)),
+    ]
+    # Without quality signals, hybrid should still produce valid rankings
+    ranked = _rank_pit_data(data, "magic_formula_hybrid")
+    assert len(ranked) == 2
+    # A3 has better EY (0.5 vs 0.1) and better ROC (2.0 vs 0.5)
+    assert ranked[0].ticker == "A3"
+
+
+def test_ranking_excludes_financeiras():
+    """Brazil variant excludes 'Financeiro' sector."""
+    data = [
+        (_make_asset("ITUB3", sector="Financeiro"), _make_fs(ebit=500, ev=100)),
+        (_make_asset("TECH3", sector="Tecnologia"), _make_fs(ebit=100, ev=1000)),
+    ]
+    ranked = _rank_pit_data(data, "magic_formula_brazil")
+    tickers = [r.ticker for r in ranked]
+    assert "ITUB3" not in tickers
+    assert "TECH3" in tickers
+
+
+def test_ranking_excludes_utilities():
+    """Brazil variant excludes 'Utilidade Pública' sector."""
+    data = [
+        (_make_asset("ELET3", sector="Utilidade Pública"), _make_fs(ebit=500, ev=100)),
+        (_make_asset("TECH3", sector="Tecnologia"), _make_fs(ebit=100, ev=1000)),
+    ]
+    ranked = _rank_pit_data(data, "magic_formula_brazil")
+    tickers = [r.ticker for r in ranked]
+    assert "ELET3" not in tickers
+    assert "TECH3" in tickers

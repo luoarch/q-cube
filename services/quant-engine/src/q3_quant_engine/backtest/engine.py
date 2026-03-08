@@ -36,6 +36,8 @@ class BacktestConfig:
     cost_model: CostModel = field(default_factory=lambda: BRAZIL_REALISTIC)
     initial_capital: float = 1_000_000.0
     benchmark: str | None = None
+    min_market_cap: float | None = None  # Override MIN_MARKET_CAP if set
+    min_avg_daily_volume: float | None = None  # Override MIN_AVG_DAILY_VOLUME if set
 
 
 @dataclass
@@ -94,8 +96,12 @@ def _generate_rebalance_dates(start: date, end: date, freq: str) -> list[date]:
 def _rank_pit_data(
     fundamentals: list[tuple],
     strategy_type: str,
+    min_market_cap: float | None = None,
+    min_avg_daily_volume: float | None = None,
 ) -> list[RankedAsset]:
     """Rank PIT data using the same logic as the live ranking strategies."""
+    from decimal import Decimal as _Decimal
+
     from q3_quant_engine.strategies.ranking import (
         EXCLUDED_SECTORS,
         MIN_AVG_DAILY_VOLUME,
@@ -110,6 +116,9 @@ def _rank_pit_data(
     if not fundamentals:
         return []
 
+    effective_min_mcap = _Decimal(str(min_market_cap)) if min_market_cap is not None else MIN_MARKET_CAP
+    effective_min_vol = _Decimal(str(min_avg_daily_volume)) if min_avg_daily_volume is not None else MIN_AVG_DAILY_VOLUME
+
     # Apply filters based on strategy type
     filtered: list[tuple[int, object, object, float | None, float | None]] = []
     idx = 0
@@ -117,9 +126,9 @@ def _rank_pit_data(
         if strategy_type in ("magic_formula_brazil", "magic_formula_hybrid"):
             if asset.sector and asset.sector.lower() in EXCLUDED_SECTORS:
                 continue
-            if fs.avg_daily_volume is not None and fs.avg_daily_volume < MIN_AVG_DAILY_VOLUME:
+            if fs.avg_daily_volume is not None and fs.avg_daily_volume < effective_min_vol:
                 continue
-            if fs.market_cap is not None and fs.market_cap < MIN_MARKET_CAP:
+            if fs.market_cap is not None and fs.market_cap < effective_min_mcap:
                 continue
             if fs.ebit is None or fs.ebit <= 0:
                 continue
@@ -224,7 +233,9 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
         universe = fetch_eligible_universe_pit(session, rebal_date)
         fundamentals = [(a, fs) for a, fs in fundamentals if a.ticker in universe]
 
-        ranked = _rank_pit_data(fundamentals, config.strategy_type)
+        ranked = _rank_pit_data(fundamentals, config.strategy_type,
+                                min_market_cap=config.min_market_cap,
+                                min_avg_daily_volume=config.min_avg_daily_volume)
         top_picks = ranked[: config.top_n]
 
         if not top_picks:
@@ -330,8 +341,18 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
             snapshot.append({"ticker": ticker, "weight": val / pv if pv > 0 else 0, "value": val})
         holdings_history.append({"date": rebal_date, "holdings": snapshot})
 
+    # Fetch benchmark curve if configured
+    benchmark_curve = None
+    if config.benchmark:
+        from q3_quant_engine.data.benchmark import build_benchmark_curve_for_rebalances
+        # Build curve: initial point + one per rebalance
+        all_dates = [config.start_date] + rebalance_dates
+        benchmark_curve = build_benchmark_curve_for_rebalances(
+            session, config.benchmark, all_dates,
+        )
+
     # Compute metrics
-    metrics = compute_metrics(equity_curve, all_trades)
+    metrics = compute_metrics(equity_curve, all_trades, benchmark_curve=benchmark_curve)
 
     return BacktestResult(
         config=config,

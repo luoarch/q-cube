@@ -314,6 +314,26 @@ def generate_sensitivity_report(
         v_result = run_backtest(session, v_config)
         variations.append(_variation_entry("cost_model", label, v_result.metrics, base_sharpe, base_cagr))
 
+    # 5. Min market cap variations
+    for mcap in (100_000_000, 250_000_000, 500_000_000, 1_000_000_000):
+        if mcap == (config.min_market_cap or 500_000_000):
+            continue
+        v_config = copy.copy(config)
+        v_config.min_market_cap = float(mcap)
+        v_result = run_backtest(session, v_config)
+        label = f"{mcap/1e6:.0f}M"
+        variations.append(_variation_entry("min_market_cap", label, v_result.metrics, base_sharpe, base_cagr))
+
+    # 6. Min avg daily volume variations
+    for vol in (500_000, 1_000_000, 2_000_000, 5_000_000):
+        if vol == (config.min_avg_daily_volume or 1_000_000):
+            continue
+        v_config = copy.copy(config)
+        v_config.min_avg_daily_volume = float(vol)
+        v_result = run_backtest(session, v_config)
+        label = f"{vol/1e6:.1f}M"
+        variations.append(_variation_entry("min_avg_daily_volume", label, v_result.metrics, base_sharpe, base_cagr))
+
     # Robustness check: Sharpe doesn't swing more than 50% across variations
     robust = _check_robustness(variations, base_sharpe)
 

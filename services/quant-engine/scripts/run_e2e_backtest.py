@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end backtest: backtest -> OOS report -> sensitivity -> Reality Check -> promotion."""
+"""End-to-end backtest: backtest -> OOS -> sensitivity -> contribution -> Reality Check -> promotion -> persist."""
 
 from __future__ import annotations
 
@@ -23,6 +23,9 @@ from q3_quant_engine.backtest.reports import (
     generate_sensitivity_report,
 )
 
+# ---- Contribution ----
+from q3_quant_engine.backtest.contribution import generate_contribution_report
+
 # ---- Reality Check ----
 from q3_quant_engine.backtest.reality_check import (
     StrategyReturns,
@@ -32,8 +35,9 @@ from q3_quant_engine.backtest.reality_check import (
 # ---- Promotion ----
 from q3_quant_engine.backtest.promotion import run_promotion_check
 
-# ---- Manifest ----
+# ---- Manifest + Persistence ----
 from q3_quant_engine.backtest.manifest import build_manifest
+from q3_quant_engine.backtest.persistence import persist_backtest
 
 
 DATABASE_URL = "postgresql://127.0.0.1:5432/q3"
@@ -52,6 +56,7 @@ def main():
         equal_weight=True,
         cost_model=BRAZIL_REALISTIC,
         initial_capital=1_000_000.0,
+        benchmark="^BVSP",
     )
 
     print("=" * 70)
@@ -63,6 +68,7 @@ def main():
     print(f"Top N:       {config.top_n}")
     print(f"Exec lag:    {config.execution_lag_days} day(s)")
     print(f"Cost model:  proportional={config.cost_model.proportional_cost}, slippage={config.cost_model.slippage_bps}bps")
+    print(f"Benchmark:   {config.benchmark}")
     print()
 
     # ===== 1. FULL BACKTEST =====
@@ -234,6 +240,41 @@ def main():
     print(f"Content hash:     {manifest.content_hash()}")
     print(f"Formula version:  {manifest.formula_version}")
     print(f"N trials:         {manifest.n_trials}")
+    print()
+
+    # ===== 7. MARGINAL CONTRIBUTION =====
+    print("-" * 70)
+    print("7. MARGINAL CONTRIBUTION ANALYSIS")
+    print("-" * 70)
+
+    with Session(engine) as session:
+        contrib_report = generate_contribution_report(session, config)
+
+    print(f"Base variant:     {contrib_report.base_variant}")
+    print(f"All positive:     {contrib_report.all_positive}")
+    print()
+    print(f"{'Variant':<20s} {'Sharpe':>10s} {'CAGR':>12s} {'MaxDD':>10s}")
+    print("-" * 55)
+    for v in contrib_report.variants:
+        print(f"  {v.variant:<18s} {v.metrics.get('sharpe', 0):>10.4f} {v.metrics.get('cagr', 0):>12.6f} {v.metrics.get('max_drawdown', 0):>10.6f}")
+    print()
+    print("Marginal contributions (vs core_only):")
+    for c in contrib_report.contributions:
+        status = "+" if c.positive else "-"
+        print(f"  [{status}] {c.component:<18s} ΔSharpe={c.delta_sharpe:>+8.4f}  ΔCAGR={c.delta_cagr:>+10.6f}  ΔMaxDD={c.delta_max_drawdown:>+10.6f}  ΔTurnover={c.delta_turnover:>+8.4f}")
+    print()
+
+    # ===== 8. PERSIST ARTIFACTS =====
+    print("-" * 70)
+    print("8. PERSIST ARTIFACTS")
+    print("-" * 70)
+
+    out_dir = persist_backtest(result, manifest)
+    print(f"Artifacts saved to: {out_dir}")
+    import os
+    for f in sorted(os.listdir(out_dir)):
+        size = os.path.getsize(os.path.join(out_dir, f))
+        print(f"  {f:<25s} {size:>8,} bytes")
     print()
 
     print("=" * 70)
