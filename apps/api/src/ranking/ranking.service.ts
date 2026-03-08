@@ -4,8 +4,6 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { DB } from "../database/database.constants.js";
 import { CacheService } from "../common/cache.service.js";
 import {
-  assets,
-  financialStatements,
   issuers,
   marketSnapshots,
   securities
@@ -33,76 +31,65 @@ export class RankingService {
     return result;
   }
 
-  private async computeRanking(tenantId: string) {
-    // Get assets with their latest financial statement
-    const rows = await this.db
-      .select({
-        assetId: assets.id,
-        ticker: assets.ticker,
-        name: assets.name,
-        assetSector: assets.sector,
-        ebit: financialStatements.ebit,
-        enterpriseValue: financialStatements.enterpriseValue,
-        roic: financialStatements.roic,
-        marketCap: financialStatements.marketCap,
-        avgDailyVolume: financialStatements.avgDailyVolume,
-      })
-      .from(assets)
-      .innerJoin(
-        financialStatements,
-        eq(financialStatements.assetId, assets.id)
-      )
-      .where(eq(assets.tenantId, tenantId))
-      .orderBy(desc(financialStatements.periodDate));
+  private async computeRanking(_tenantId: string) {
+    // Read from canonical fundamentals view (global, not tenant-scoped)
+    const result = await this.db.execute(sql`
+      SELECT ticker, name, sector,
+             ebit, net_debt, ebitda, net_working_capital, fixed_assets,
+             roic, market_cap, avg_daily_volume
+      FROM v_financial_statements_compat
+    `);
+    const rows = result.rows as Array<{
+      ticker: string;
+      name: string | null;
+      sector: string | null;
+      ebit: string | null;
+      net_debt: string | null;
+      ebitda: string | null;
+      net_working_capital: string | null;
+      fixed_assets: string | null;
+      roic: string | null;
+      market_cap: string | null;
+      avg_daily_volume: string | null;
+    }>;
 
-    // Deduplicate: keep only the latest financial statement per asset
-    const seen = new Set<string>();
-    const unique: typeof rows = [];
-    for (const row of rows) {
-      if (!seen.has(row.assetId)) {
-        seen.add(row.assetId);
-        unique.push(row);
-      }
-    }
-
-    // Try to enrich sector from issuers via securities ticker match
-    const sectorMap = await this.buildSectorMap();
-
-    // Try to get latest prices from market_snapshots
+    // Get latest prices from market_snapshots
     const priceMap = await this.buildPriceMap();
 
     // Compute earnings yield and return on capital
-    const enriched = unique.map((row) => {
+    const enriched = rows.map((row) => {
       const ebit = row.ebit ? Number(row.ebit) : 0;
-      const ev = row.enterpriseValue ? Number(row.enterpriseValue) : 0;
+      const marketCap = row.market_cap ? Number(row.market_cap) : 0;
+      const netDebt = row.net_debt ? Number(row.net_debt) : 0;
+      const ev = marketCap > 0 ? marketCap + netDebt : 0;
       const earningsYield = ev > 0 ? ebit / ev : 0;
-      const returnOnCapital = row.roic ? Number(row.roic) : 0;
-      const sector =
-        row.assetSector || sectorMap.get(row.ticker) || UNKNOWN_SECTOR;
-      const avgDailyVolume = row.avgDailyVolume
-        ? Number(row.avgDailyVolume)
-        : 0;
-      const roic = returnOnCapital;
+
+      const nwc = row.net_working_capital ? Number(row.net_working_capital) : 0;
+      const fa = row.fixed_assets ? Number(row.fixed_assets) : 0;
+      const capital = nwc + fa;
+      const returnOnCapital = capital !== 0 ? ebit / capital : (row.roic ? Number(row.roic) : 0);
+
+      const avgDailyVolume = row.avg_daily_volume ? Number(row.avg_daily_volume) : 0;
       const priceData = priceMap.get(row.ticker);
 
       return {
         ticker: row.ticker,
-        name: row.name,
-        sector,
+        name: row.name ?? row.ticker,
+        sector: row.sector || UNKNOWN_SECTOR,
         earningsYield,
         returnOnCapital,
         price: priceData?.price ?? null,
         change: priceData?.change ?? null,
-        marketCap: row.marketCap ? Number(row.marketCap) : 0,
+        marketCap,
         quality:
-          roic >= 0.15 ? "high" : roic >= 0.08 ? "medium" : ("low" as const),
+          returnOnCapital >= 0.15 ? "high" : returnOnCapital >= 0.08 ? "medium" : ("low" as const),
         liquidity:
           avgDailyVolume >= 1_000_000
             ? "high"
             : avgDailyVolume >= 100_000
               ? "medium"
               : ("low" as const),
-        magicFormulaRank: 0, // will be computed below
+        magicFormulaRank: 0,
       };
     });
 

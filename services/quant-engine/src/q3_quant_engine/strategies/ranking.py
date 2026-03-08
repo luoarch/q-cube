@@ -139,8 +139,8 @@ def _fetch_latest_fundamentals_v2(
     sql = text("""
         SELECT ticker, name, sector,
                ebit, enterprise_value, net_working_capital, fixed_assets,
-               roic, roe, net_debt, ebitda, net_margin, gross_margin,
-               earnings_yield, debt_to_ebitda, cash_conversion,
+               roic, net_debt, ebitda, net_margin, gross_margin,
+               earnings_yield,
                market_cap, avg_daily_volume
         FROM v_financial_statements_compat
     """)
@@ -154,22 +154,25 @@ def _fetch_latest_fundamentals_v2(
             name=row.name or "",
             sector=row.sector,
         )
+        _dec = lambda v: Decimal(str(v)) if v is not None else None
+        net_debt = _dec(row.net_debt)
+        ebitda = _dec(row.ebitda)
         fs = _CompatFS(
-            ebit=Decimal(str(row.ebit)) if row.ebit is not None else None,
-            enterprise_value=Decimal(str(row.enterprise_value)) if row.enterprise_value is not None else None,
-            net_working_capital=Decimal(str(row.net_working_capital)) if row.net_working_capital is not None else None,
-            fixed_assets=Decimal(str(row.fixed_assets)) if row.fixed_assets is not None else None,
-            roic=Decimal(str(row.roic)) if row.roic is not None else None,
-            roe=Decimal(str(row.roe)) if row.roe is not None else None,
-            net_debt=Decimal(str(row.net_debt)) if row.net_debt is not None else None,
-            ebitda=Decimal(str(row.ebitda)) if row.ebitda is not None else None,
-            net_margin=Decimal(str(row.net_margin)) if row.net_margin is not None else None,
-            gross_margin=Decimal(str(row.gross_margin)) if row.gross_margin is not None else None,
-            earnings_yield=Decimal(str(row.earnings_yield)) if row.earnings_yield is not None else None,
-            debt_to_ebitda=Decimal(str(row.debt_to_ebitda)) if row.debt_to_ebitda is not None else None,
-            cash_conversion=Decimal(str(row.cash_conversion)) if row.cash_conversion is not None else None,
-            market_cap=Decimal(str(row.market_cap)) if row.market_cap is not None else None,
-            avg_daily_volume=Decimal(str(row.avg_daily_volume)) if row.avg_daily_volume is not None else None,
+            ebit=_dec(row.ebit),
+            enterprise_value=_dec(row.enterprise_value),
+            net_working_capital=_dec(row.net_working_capital),
+            fixed_assets=_dec(row.fixed_assets),
+            roic=_dec(row.roic),
+            roe=None,
+            net_debt=net_debt,
+            ebitda=ebitda,
+            net_margin=_dec(row.net_margin),
+            gross_margin=_dec(row.gross_margin),
+            earnings_yield=_dec(row.earnings_yield),
+            debt_to_ebitda=Decimal(str(float(net_debt) / float(ebitda))) if net_debt is not None and ebitda and ebitda != 0 else None,
+            cash_conversion=None,
+            market_cap=_dec(row.market_cap),
+            avg_daily_volume=_dec(row.avg_daily_volume),
         )
         results.append((asset, fs))
 
@@ -184,7 +187,12 @@ def _compute_ey_roc(
     if hasattr(fs, "earnings_yield") and fs.earnings_yield is not None:
         ey = float(fs.earnings_yield)
     else:
-        ey = _safe_div(fs.ebit, fs.enterprise_value)
+        # Try enterprise_value first, then approximate EV = market_cap + net_debt
+        ev = fs.enterprise_value
+        if ev is None and hasattr(fs, "market_cap") and fs.market_cap is not None:
+            net_debt = Decimal(str(fs.net_debt)) if fs.net_debt is not None else Decimal(0)
+            ev = Decimal(str(fs.market_cap)) + net_debt
+        ey = _safe_div(fs.ebit, ev)
     nwc = Decimal(str(fs.net_working_capital)) if fs.net_working_capital is not None else Decimal(0)
     fa = Decimal(str(fs.fixed_assets)) if fs.fixed_assets is not None else Decimal(0)
     capital = nwc + fa
