@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     specialist_anthropic_model: str = "claude-sonnet-4-6"
     specialist_google_model: str = "gemini-2.5-pro"
 
+    # Web tools
+    brave_search_api_key: str = ""
+    web_browse_enabled: bool = True
+    web_search_timeout_seconds: int = 10
+    web_browse_timeout_seconds: int = 15
+
     quant_engine_url: str = "http://localhost:8100"
     scan_interval_seconds: int = 30
     enabled: bool = True

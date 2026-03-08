@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from q3_ai_assistant.council.agent_factory import create_agent, create_specialists
 from q3_ai_assistant.council.agents.moderator import ModeratorAgent
@@ -86,11 +87,7 @@ class CouncilOrchestrator:
         """All 4 specialists + moderator synthesis."""
         specialists = create_specialists()
 
-        # Run all specialists (could be parallelized in future)
-        opinions: list[AgentOpinion] = []
-        for agent in specialists:
-            opinion = agent.analyze(packet, self._specialist_cascade)
-            opinions.append(opinion)
+        opinions = _parallel_analyze(specialists, packet, self._specialist_cascade)
 
         # Run moderator synthesis
         moderator = ModeratorAgent()
@@ -128,17 +125,15 @@ class CouncilOrchestrator:
         agents = [create_agent(aid) for aid in agent_ids if aid != "moderator"]
         debate_log: list[DebateRound] = []
 
-        # Round 1: Initial verdicts (independent)
-        opinions: list[AgentOpinion] = []
+        # Round 1: Initial verdicts (parallel)
+        opinions = _parallel_analyze(agents, packet, self._specialist_cascade)
         opinion_map: dict[str, AgentOpinion] = {}
 
-        for agent in agents:
-            opinion = agent.analyze(packet, self._specialist_cascade)
-            opinions.append(opinion)
-            opinion_map[agent.agent_id] = opinion
+        for opinion in opinions:
+            opinion_map[opinion.agent_id] = opinion
             debate_log.append(DebateRound(
                 round_number=1,
-                agent_id=agent.agent_id,
+                agent_id=opinion.agent_id,
                 content=opinion.thesis,
                 target_agent_id=None,
                 timestamp="",
@@ -267,14 +262,23 @@ class CouncilOrchestrator:
         # Step 1: Build deterministic comparison matrix from packet data
         comp_matrix = _build_comparison_matrix(tickers, packets)
 
-        # Step 2: Run specialists on each asset (collect all opinions)
+        # Step 2: Run specialists on each asset in parallel
         all_opinions: list[AgentOpinion] = []
         specialists = create_specialists()
 
-        for packet in packets:
-            for agent in specialists:
-                opinion = agent.analyze(packet, self._specialist_cascade)
-                all_opinions.append(opinion)
+        with ThreadPoolExecutor(max_workers=len(specialists) * len(packets)) as pool:
+            futures = {
+                pool.submit(agent.analyze, pkt, self._specialist_cascade): (i, agent.agent_id)
+                for i, pkt in enumerate(packets)
+                for agent in specialists
+            }
+            # Collect results ordered by (packet_index, agent_id) for determinism
+            results: list[tuple[int, str, AgentOpinion]] = []
+            for future in as_completed(futures):
+                idx, aid = futures[future]
+                results.append((idx, aid, future.result()))
+            results.sort(key=lambda r: (r[0], r[1]))
+            all_opinions = [r[2] for r in results]
 
         # Step 3: Moderator synthesis across all assets
         moderator = ModeratorAgent()
@@ -300,6 +304,28 @@ class CouncilOrchestrator:
             audit_trail=_build_audit(all_opinions),
             comparison_matrix=comp_matrix,
         )
+
+
+# --- Parallelization helper ---
+
+
+def _parallel_analyze(
+    agents: list,
+    packet: AssetAnalysisPacket,
+    cascade: CascadeRouter,
+) -> list[AgentOpinion]:
+    """Run agent.analyze() in parallel threads and return results in agent order."""
+    with ThreadPoolExecutor(max_workers=len(agents)) as pool:
+        futures = {
+            pool.submit(agent.analyze, packet, cascade): i
+            for i, agent in enumerate(agents)
+        }
+        results: list[tuple[int, AgentOpinion]] = []
+        for future in as_completed(futures):
+            idx = futures[future]
+            results.append((idx, future.result()))
+        results.sort(key=lambda r: r[0])
+        return [r[1] for r in results]
 
 
 # --- Comparison helpers ---
