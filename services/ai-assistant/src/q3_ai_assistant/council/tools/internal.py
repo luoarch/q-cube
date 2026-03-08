@@ -213,3 +213,53 @@ def get_data_lineage(session: Session, ticker: str, metric_code: str) -> ToolRes
             "source": "computed_metrics (derived from statement_lines <- filings <- CVM)",
         },
     )
+
+
+def compare_companies(session: Session, tickers: list[str]) -> ToolResult:
+    """Run lightweight metric comparison between 2-3 tickers."""
+    from q3_shared_models.entities import ComputedMetric, Security
+
+    if len(tickers) < 2 or len(tickers) > 3:
+        return ToolResult(
+            tool="compare_companies", data=None,
+            error="Provide 2-3 tickers",
+        )
+
+    comparison_metrics = [
+        "earnings_yield", "roic", "roe", "gross_margin",
+        "ebit_margin", "net_margin", "debt_to_ebitda",
+    ]
+
+    ticker_data: dict[str, dict[str, float | None]] = {}
+    for ticker in tickers:
+        security = session.query(Security).filter_by(ticker=ticker).first()
+        if not security:
+            continue
+
+        metrics = (
+            session.query(ComputedMetric)
+            .filter_by(issuer_id=security.issuer_id, period_type="annual")
+            .order_by(ComputedMetric.reference_date.desc())
+            .limit(30)
+            .all()
+        )
+
+        latest: dict[str, float | None] = {}
+        for m in metrics:
+            if m.metric_code not in latest and m.metric_code in comparison_metrics:
+                latest[m.metric_code] = float(m.value) if m.value is not None else None
+        ticker_data[ticker] = latest
+
+    if len(ticker_data) < 2:
+        return ToolResult(
+            tool="compare_companies", data=None,
+            error="Could not find at least 2 of the requested tickers",
+        )
+
+    return ToolResult(
+        tool="compare_companies",
+        data={
+            "tickers": list(ticker_data.keys()),
+            "metrics": ticker_data,
+        },
+    )

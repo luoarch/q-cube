@@ -9,7 +9,9 @@ from sqlalchemy import func, select
 from q3_ai_assistant.config import settings
 from q3_ai_assistant.db.session import SessionLocal
 from q3_ai_assistant.models.entities import AISuggestion, ReviewStatus
+from q3_ai_assistant.observability.logging import configure_logging
 
+configure_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Q3 AI Assistant", version="0.1.0")
