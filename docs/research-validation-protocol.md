@@ -75,11 +75,11 @@ Uma estrategia so pode ser promovida se passar por **todos** estes blocos:
 
 ### Backlog
 
-- [ ] Criar suite `test_point_in_time_integrity`
-- [ ] Criar fixture com filing original + restatement posterior
-- [ ] Testar que rebalance anterior a retificacao usa apenas o filing antigo
-- [ ] Testar que snapshot velho e excluido do calculo
-- [ ] Testar mudanca de ticker / primary security sem vazamento temporal
+- [x] Criar suite `test_point_in_time_integrity`
+- [x] Criar fixture com filing original + restatement posterior
+- [x] Testar que rebalance anterior a retificacao usa apenas o filing antigo
+- [x] Testar que snapshot velho e excluido do calculo
+- [x] Testar mudanca de ticker / primary security sem vazamento temporal
 
 ---
 
@@ -95,11 +95,11 @@ Uma estrategia so pode ser promovida se passar por **todos** estes blocos:
 
 ### Backlog
 
-- [ ] Implementar engine de rebalance mensal
-- [ ] Implementar engine trimestral
-- [ ] Definir regra padrao de execucao
-- [ ] Aplicar custo fixo + custo proporcional
-- [ ] Aplicar slippage parametrizavel
+- [x] Implementar engine de rebalance mensal
+- [x] Implementar engine trimestral
+- [x] Definir regra padrao de execucao
+- [x] Aplicar custo fixo + custo proporcional
+- [x] Aplicar slippage parametrizavel
 - [ ] Modelar arredondamento e cash residual
 - [ ] Definir benchmark oficial
 
@@ -122,10 +122,10 @@ Para tuning mais serio, usar validacao temporal com **purging/embargo** para red
 ### Backlog
 
 - [ ] Definir janelas oficiais do Q3
-- [ ] Implementar walk-forward runner
-- [ ] Implementar purged temporal split
+- [x] Implementar walk-forward runner
+- [x] Implementar purged temporal split
 - [ ] Bloquear uso do OOS em tuning
-- [ ] Persistir metadado indicando qual split gerou o experimento
+- [x] Persistir metadado indicando qual split gerou o experimento
 
 ---
 
@@ -141,10 +141,10 @@ White (2000) mostra que reutilizar o mesmo conjunto de dados para testar muitas 
 
 ### Backlog
 
-- [ ] Criar registro obrigatorio de hipoteses testadas
-- [ ] Salvar numero de variantes avaliadas por familia
-- [ ] Implementar pipeline de `RealityCheckReport`
-- [ ] Reportar p-value corrigido para selecao multipla
+- [x] Criar registro obrigatorio de hipoteses testadas
+- [x] Salvar numero de variantes avaliadas por familia
+- [x] Implementar pipeline de `RealityCheckReport`
+- [x] Reportar p-value corrigido para selecao multipla
 - [ ] Impedir merge de "nova estrategia" sem manifest de pesquisa
 
 ---
@@ -170,10 +170,10 @@ Bailey & Lopez de Prado (2014) propoem o **Deflated Sharpe Ratio** para corrigir
 
 ### Backlog
 
-- [ ] Implementar `ProbabilisticSharpeRatio`
-- [ ] Implementar `DeflatedSharpeRatio`
-- [ ] Reportar assimetria e curtose dos retornos
-- [ ] Reportar numero efetivo de testes/modelos
+- [x] Implementar `ProbabilisticSharpeRatio`
+- [x] Implementar `DeflatedSharpeRatio`
+- [x] Reportar assimetria e curtose dos retornos
+- [x] Reportar numero efetivo de testes/modelos
 - [ ] Nunca exibir Sharpe isolado como "selo de qualidade"
 
 ---
@@ -193,11 +193,11 @@ E nao pode depender de um unico subperiodo excepcional.
 
 ### Backlog
 
-- [ ] Criar relatorio por subperiodo
-- [ ] Criar heatmap rolling de performance
-- [ ] Medir degradacao IS -> OOS
-- [ ] Definir limite maximo aceitavel de degradacao
-- [ ] Criar flag `fragile_strategy` quando OOS colapsar
+- [x] Criar relatorio por subperiodo
+- [x] Criar heatmap rolling de performance
+- [x] Medir degradacao IS -> OOS
+- [x] Definir limite maximo aceitavel de degradacao
+- [x] Criar flag `fragile_strategy` quando OOS colapsar
 
 ---
 
@@ -209,15 +209,15 @@ Uma estrategia robusta nao deve depender de um parametro exato demais.
 
 ### Backlog
 
-- [ ] Variar frequencia de rebalance
+- [x] Variar frequencia de rebalance
 - [ ] Variar liquidez minima
 - [ ] Variar market cap minimo
-- [ ] Variar custos
-- [ ] Variar slippage
+- [x] Variar custos
+- [x] Variar slippage
 - [ ] Variar winzorizacao
 - [ ] Variar tratamento de missing values
-- [ ] Variar lag de filing
-- [ ] Gerar relatorio de sensibilidade
+- [x] Variar lag de filing
+- [x] Gerar relatorio de sensibilidade
 
 ---
 
@@ -229,14 +229,14 @@ Garantir que a implementacao bate com a definicao teorica.
 
 ### Backlog
 
-- [ ] Testar que Brazil gates sao filtros, nao score
-- [ ] Testar que core usa `EY + ROC` com pesos iguais
+- [x] Testar que Brazil gates sao filtros, nao score
+- [x] Testar que core usa `EY + ROC` com pesos iguais
 - [ ] Testar que quality overlay usa apenas sinais disponiveis
 - [ ] Testar que ausencia de overlay nao corrompe score
-- [ ] Testar ordenacao asc/desc correta por metrica
+- [x] Testar ordenacao asc/desc correta por metrica
 - [ ] Testar exclusao de financeiras/utilities
-- [ ] Testar exclusao de `EBIT <= 0`
-- [ ] Testar casos `EV <= 0`, `equity <= 0`, `net_income <= 0`
+- [x] Testar exclusao de `EBIT <= 0`
+- [x] Testar casos `EV <= 0`, `equity <= 0`, `net_income <= 0`
 
 ---
 
@@ -283,12 +283,12 @@ Cada experimento deve persistir:
 
 ### Backlog
 
-- [ ] Criar schema `research_manifest.json`
+- [x] Criar schema `research_manifest.json`
 - [ ] Persistir constituents por rebalance
 - [ ] Persistir returns da carteira
-- [ ] Persistir metricas agregadas
+- [x] Persistir metricas agregadas
 - [ ] Persistir logs de dados usados
-- [ ] Garantir rerun deterministico
+- [x] Garantir rerun deterministico
 
 ---
 
@@ -296,18 +296,18 @@ Cada experimento deve persistir:
 
 Uma estrategia so sobe para "candidate" se:
 
-- [ ] OOS aceitavel
-- [ ] DSR acima do threshold
-- [ ] Sem dependencia critica de um unico subperiodo
-- [ ] Robusta a custos
-- [ ] Robusta a pequenas variacoes de parametros
-- [ ] Sem violacao de point-in-time
-- [ ] Com documentacao completa do experimento
+- [x] OOS aceitavel
+- [x] DSR acima do threshold
+- [x] Sem dependencia critica de um unico subperiodo
+- [x] Robusta a custos
+- [x] Robusta a pequenas variacoes de parametros
+- [x] Sem violacao de point-in-time
+- [x] Com documentacao completa do experimento
 
 ### Backlog
 
-- [ ] Definir thresholds oficiais
-- [ ] Automatizar `promotion_check`
+- [x] Definir thresholds oficiais
+- [x] Automatizar `promotion_check`
 - [ ] Bloquear promocao manual sem checklist completo
 
 ---
@@ -316,26 +316,26 @@ Uma estrategia so sobe para "candidate" se:
 
 ### Sprint R1
 
-- [ ] Point-in-time tests
-- [ ] Backtest engine minimo honesto
-- [ ] Custos/slippage
-- [ ] Walk-forward basico
-- [ ] Strategy specification tests
+- [x] Point-in-time tests
+- [x] Backtest engine minimo honesto
+- [x] Custos/slippage
+- [x] Walk-forward basico
+- [x] Strategy specification tests
 
 ### Sprint R2
 
-- [ ] OOS report
-- [ ] Subperiod report
-- [ ] Sensitivity report
-- [ ] Manifest reproduzivel
-- [ ] PSR / DSR
+- [x] OOS report
+- [x] Subperiod report
+- [x] Sensitivity report
+- [x] Manifest reproduzivel
+- [x] PSR / DSR
 
 ### Sprint R3
 
-- [ ] Reality Check
-- [ ] Purged temporal validation
-- [ ] Promotion pipeline
-- [ ] PBO / overfitting diagnostics
+- [x] Reality Check
+- [x] Purged temporal validation
+- [x] Promotion pipeline
+- [x] PBO / overfitting diagnostics
 
 ---
 
