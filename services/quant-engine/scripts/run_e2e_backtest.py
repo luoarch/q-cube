@@ -44,8 +44,8 @@ def main():
 
     config = BacktestConfig(
         strategy_type="magic_formula_brazil",
-        start_date=date(2024, 6, 1),
-        end_date=date(2025, 3, 1),
+        start_date=date(2025, 12, 15),
+        end_date=date(2026, 3, 1),
         rebalance_freq="monthly",
         execution_lag_days=1,
         top_n=20,
@@ -93,14 +93,14 @@ def main():
 
     # ===== 2. OOS REPORT =====
     print("-" * 70)
-    print("2. OOS REPORT (IS: Jun-Nov 2024, OOS: Dec 2024 - Mar 2025)")
+    print("2. OOS REPORT (IS: Dec 2025 - Jan 2026, OOS: Feb - Mar 2026)")
     print("-" * 70)
 
     with Session(engine) as session:
         oos_report = generate_oos_report(
             session, config,
-            is_end=date(2024, 11, 30),
-            oos_start=date(2024, 12, 1),
+            is_end=date(2026, 1, 31),
+            oos_start=date(2026, 2, 1),
             n_trials=1,
         )
 
@@ -201,7 +201,7 @@ def main():
         manifest_valid=True,
         pit_validated=True,
         costs_applied=True,
-        oos_months=4,  # Dec 2024 - Mar 2025
+        oos_months=1,  # Feb - Mar 2026
     )
 
     print(f"PROMOTED:         {'YES' if promo.promoted else 'NO'}")
