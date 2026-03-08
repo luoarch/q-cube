@@ -57,14 +57,8 @@ export class ChatController {
       return this.proxyToCouncil(sessionId, user.tenantId, mode, input);
     }
 
-    // Free chat: placeholder response (will be replaced with RAG + tools integration)
-    const assistantMsg = await this.chatService.addMessage(
-      sessionId,
-      'assistant',
-      'Mensagem recebida. Use um modo de conselho (mesa redonda, agente solo, debate) com tickers para ativar a analise.',
-    );
-
-    return assistantMsg;
+    // Free chat: proxy to AI assistant for tools + RAG + LLM synthesis
+    return this.proxyToFreeChat(sessionId, user.tenantId, input.content);
   }
 
   @Get('sessions/:id/messages')
@@ -73,6 +67,69 @@ export class ChatController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.chatService.getMessages(sessionId, user.tenantId);
+  }
+
+  private async proxyToFreeChat(
+    sessionId: string,
+    tenantId: string,
+    message: string,
+  ) {
+    try {
+      // Get recent history for conversational context
+      const messages = await this.chatService.getMessages(sessionId, tenantId);
+      const history = messages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const res = await fetch(`${AI_ASSISTANT_URL}/chat/free`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          history,
+          tenant_id: tenantId,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        this.logger.warn(`Free chat proxy failed: ${res.status} ${errorText}`);
+        return this.chatService.addMessage(
+          sessionId,
+          'assistant',
+          `Erro ao processar mensagem: ${res.status}`,
+        );
+      }
+
+      const result = (await res.json()) as {
+        response: string;
+        tools_used: string[];
+        provider_used: string;
+        model_used: string;
+        tokens_used: number;
+        cost_usd: number;
+      };
+
+      return this.chatService.addMessage(
+        sessionId,
+        'assistant',
+        result.response,
+        {
+          providerUsed: result.provider_used,
+          modelUsed: result.model_used,
+          tokensUsed: result.tokens_used,
+          costUsd: result.cost_usd,
+        },
+      );
+    } catch (err) {
+      this.logger.error(`Free chat proxy error: ${err}`);
+      return this.chatService.addMessage(
+        sessionId,
+        'assistant',
+        'Servico de IA indisponivel no momento. Tente novamente mais tarde.',
+      );
+    }
   }
 
   private async proxyToCouncil(

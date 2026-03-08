@@ -249,6 +249,58 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# Free chat endpoint (tools + RAG + LLM synthesis)
+# ---------------------------------------------------------------------------
+
+
+class FreeChatRequest(BaseModel):
+    message: str
+    history: list[dict] | None = None
+    tenant_id: str
+
+
+class FreeChatResponse(BaseModel):
+    response: str
+    tools_used: list[str]
+    provider_used: str
+    model_used: str
+    tokens_used: int
+    cost_usd: float
+
+
+@app.post("/chat/free", response_model=FreeChatResponse)
+def chat_free(req: FreeChatRequest) -> FreeChatResponse:
+    """Handle free-form chat with tools + RAG + LLM synthesis."""
+    if not settings.enabled:
+        raise HTTPException(status_code=503, detail="AI assistant is disabled")
+
+    from q3_ai_assistant.modules.free_chat import handle_free_chat
+
+    cascade = _create_cascade("specialist")
+
+    try:
+        with SessionLocal() as session:
+            result = handle_free_chat(
+                session,
+                req.message,
+                cascade,
+                history=req.history,
+            )
+    except Exception as exc:
+        logger.exception("Free chat failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return FreeChatResponse(
+        response=result.response,
+        tools_used=result.tools_used,
+        provider_used=result.provider_used,
+        model_used=result.model_used,
+        tokens_used=result.tokens_used,
+        cost_usd=result.cost_usd,
+    )
+
+
 def _serialize_opinion(o: dict) -> dict:
     """Ensure opinion dict has serializable values."""
     if "verdict" in o and hasattr(o["verdict"], "value"):
