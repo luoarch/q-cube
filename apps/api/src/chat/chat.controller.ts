@@ -19,7 +19,7 @@ import type { JwtPayload } from '../auth/auth.service.js';
 
 const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8100';
 
-const COUNCIL_MODES = new Set<ChatMode>(['agent_solo', 'roundtable', 'debate']);
+const COUNCIL_MODES = new Set<ChatMode>(['agent_solo', 'roundtable', 'debate', 'comparison']);
 
 @Controller('chat')
 @UseGuards(AuthGuard)
@@ -81,7 +81,8 @@ export class ChatController {
     mode: ChatMode,
     input: SendMessage,
   ) {
-    const ticker = input.tickers![0]!;
+    const tickers = input.tickers!;
+    const ticker = tickers[0]!;
     const councilMode = mode === 'agent_solo' ? 'solo' : mode;
 
     try {
@@ -91,6 +92,7 @@ export class ChatController {
         body: JSON.stringify({
           mode: councilMode,
           ticker,
+          tickers: mode === 'comparison' ? tickers : undefined,
           agent_ids: input.agentIds ?? null,
           tenant_id: tenantId,
         }),

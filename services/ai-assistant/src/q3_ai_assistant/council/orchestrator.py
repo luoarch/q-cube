@@ -25,6 +25,7 @@ from q3_ai_assistant.council.packet import AssetAnalysisPacket
 from q3_ai_assistant.council.types import (
     AgentOpinion,
     AuditTrail,
+    ComparisonMatrixResult,
     ConflictEntry,
     CouncilMode,
     CouncilResult,
@@ -247,6 +248,159 @@ class CouncilOrchestrator:
             disclaimer=DISCLAIMER,
             audit_trail=_build_audit(final_opinions),
         )
+
+
+    def run_comparison(
+        self,
+        tickers: list[str],
+        packets: list[AssetAnalysisPacket],
+    ) -> CouncilResult:
+        """Deterministic comparison + per-asset agent roundtable opinions.
+
+        1. Run lightweight metric comparison across all packets
+        2. Run all specialists on each asset
+        3. Moderator synthesizes the comparative view
+        """
+        if len(packets) < 2:
+            raise ValueError("Comparison requires at least 2 assets")
+
+        # Step 1: Build deterministic comparison matrix from packet data
+        comp_matrix = _build_comparison_matrix(tickers, packets)
+
+        # Step 2: Run specialists on each asset (collect all opinions)
+        all_opinions: list[AgentOpinion] = []
+        specialists = create_specialists()
+
+        for packet in packets:
+            for agent in specialists:
+                opinion = agent.analyze(packet, self._specialist_cascade)
+                all_opinions.append(opinion)
+
+        # Step 3: Moderator synthesis across all assets
+        moderator = ModeratorAgent()
+        opinion_dicts = [_opinion_to_dict(o) for o in all_opinions]
+        moderator.build_synthesis_prompt(packets[0], opinion_dicts)
+        mod_opinion = moderator.analyze(packets[0], self._orchestrator_cascade)
+        all_opinions.append(mod_opinion)
+
+        scoreboard = _build_scoreboard(all_opinions)
+        conflicts = _detect_conflicts(all_opinions)
+        synthesis = _extract_synthesis(mod_opinion)
+
+        return CouncilResult(
+            session_id=str(uuid.uuid4()),
+            mode=CouncilMode.comparison,
+            asset_ids=[p.issuer_id for p in packets],
+            opinions=all_opinions,
+            scoreboard=scoreboard,
+            conflict_matrix=conflicts,
+            moderator_synthesis=synthesis,
+            debate_log=None,
+            disclaimer=DISCLAIMER,
+            audit_trail=_build_audit(all_opinions),
+            comparison_matrix=comp_matrix,
+        )
+
+
+# --- Comparison helpers ---
+
+
+_COMPARISON_RULES = [
+    {"metric": "earnings_yield", "direction": "higher_better", "mode": "latest", "tolerance": 0.005},
+    {"metric": "roic", "direction": "higher_better", "mode": "latest", "tolerance": 0.01},
+    {"metric": "roe", "direction": "higher_better", "mode": "latest", "tolerance": 0.01},
+    {"metric": "gross_margin", "direction": "higher_better", "mode": "avg_3p", "tolerance": 0.01},
+    {"metric": "ebit_margin", "direction": "higher_better", "mode": "avg_3p", "tolerance": 0.01},
+    {"metric": "net_margin", "direction": "higher_better", "mode": "avg_3p", "tolerance": 0.005},
+    {"metric": "cash_conversion", "direction": "higher_better", "mode": "avg_3p", "tolerance": 0.05},
+    {"metric": "debt_to_ebitda", "direction": "lower_better", "mode": "latest", "tolerance": 0.3},
+    {"metric": "refinement_score", "direction": "higher_better", "mode": "latest", "tolerance": 0.02},
+]
+
+
+def _build_comparison_matrix(
+    tickers: list[str],
+    packets: list[AssetAnalysisPacket],
+) -> ComparisonMatrixResult:
+    """Build a lightweight comparison matrix from packet fundamentals."""
+    import statistics as stats
+
+    issuer_ids = [p.issuer_id for p in packets]
+    metrics_results: list[dict] = []
+
+    for rule in _COMPARISON_RULES:
+        metric = rule["metric"]
+        values: dict[str, float | None] = {}
+
+        for i, packet in enumerate(packets):
+            if rule["mode"] == "latest":
+                values[issuer_ids[i]] = packet.fundamentals.get(metric)
+            elif rule["mode"] == "avg_3p":
+                series = packet.trends.get(metric, [])
+                vals = [pv.value for pv in series if pv.value is not None]
+                values[issuer_ids[i]] = stats.mean(vals) if vals else None
+            else:
+                values[issuer_ids[i]] = packet.fundamentals.get(metric)
+
+        # Determine winner
+        valid = {k: v for k, v in values.items() if v is not None}
+        winner = None
+        outcome = "inconclusive"
+        margin = None
+
+        if len(valid) >= 2:
+            lower = rule["direction"] in ("lower_better", "lower_stdev_better")
+            sorted_items = sorted(valid.items(), key=lambda x: x[1], reverse=not lower)
+            best_id, best_val = sorted_items[0]
+            second_val = sorted_items[1][1]
+            margin = abs(best_val - second_val)
+            if margin < rule["tolerance"]:
+                outcome = "tie"
+            else:
+                winner = best_id
+                outcome = "win"
+        elif len(valid) == 1:
+            winner = next(iter(valid))
+            outcome = "win"
+
+        metrics_results.append({
+            "metric": metric,
+            "direction": rule["direction"],
+            "comparisonMode": rule["mode"],
+            "tolerance": rule["tolerance"],
+            "values": values,
+            "winner": winner,
+            "outcome": outcome,
+            "margin": margin,
+        })
+
+    # Summaries
+    summaries = []
+    for i, iid in enumerate(issuer_ids):
+        wins = sum(1 for m in metrics_results if m["winner"] == iid and m["outcome"] == "win")
+        ties = sum(1 for m in metrics_results if m["outcome"] == "tie")
+        losses = sum(
+            1 for m in metrics_results
+            if m["outcome"] == "win" and m["winner"] != iid and m["winner"] is not None
+        )
+        inconclusive = sum(1 for m in metrics_results if m["outcome"] == "inconclusive")
+        summaries.append({
+            "issuerId": iid,
+            "ticker": tickers[i],
+            "wins": wins,
+            "ties": ties,
+            "losses": losses,
+            "inconclusive": inconclusive,
+        })
+
+    return ComparisonMatrixResult(
+        issuer_ids=issuer_ids,
+        tickers=tickers,
+        metrics=metrics_results,
+        summaries=summaries,
+        rules_version=1,
+        data_reliability={iid: "medium" for iid in issuer_ids},
+    )
 
 
 def _build_scoreboard(opinions: list[AgentOpinion]) -> CouncilScoreboard:

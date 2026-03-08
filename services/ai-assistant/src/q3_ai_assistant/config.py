@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     specialist_anthropic_model: str = "claude-sonnet-4-6"
     specialist_google_model: str = "gemini-2.5-pro"
 
+    quant_engine_url: str = "http://localhost:8100"
     scan_interval_seconds: int = 30
     enabled: bool = True
 

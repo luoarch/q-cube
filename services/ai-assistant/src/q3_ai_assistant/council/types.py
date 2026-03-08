@@ -93,6 +93,17 @@ class AuditTrail:
 
 
 @dataclass
+class ComparisonMatrixResult:
+    """Mirrors quant-engine ComparisonMatrix for cross-service transfer."""
+    issuer_ids: list[str]
+    tickers: list[str]
+    metrics: list[dict]
+    summaries: list[dict]
+    rules_version: int
+    data_reliability: dict[str, str]
+
+
+@dataclass
 class CouncilResult:
     session_id: str
     mode: CouncilMode
@@ -104,3 +115,4 @@ class CouncilResult:
     debate_log: list[DebateRound] | None
     disclaimer: str
     audit_trail: AuditTrail
+    comparison_matrix: ComparisonMatrixResult | None = None

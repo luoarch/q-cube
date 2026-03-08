@@ -51,8 +51,9 @@ def health() -> dict:
 
 
 class CouncilRequest(BaseModel):
-    mode: str  # solo | roundtable | debate
+    mode: str  # solo | roundtable | debate | comparison
     ticker: str
+    tickers: list[str] | None = None  # for comparison mode (2-3 tickers)
     agent_ids: list[str] | None = None
     tenant_id: str
 
@@ -65,6 +66,7 @@ class CouncilResponse(BaseModel):
     conflict_matrix: list[dict]
     moderator_synthesis: dict
     debate_log: list[dict] | None = None
+    comparison_matrix: dict | None = None
     disclaimer: str
     audit_trail: dict
 
@@ -183,6 +185,39 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
         elif req.mode == "debate":
             agent_ids = req.agent_ids or ["greenblatt", "buffett"]
             result = orchestrator.run_debate(agent_ids, packet)
+        elif req.mode == "comparison":
+            comp_tickers = req.tickers or [req.ticker]
+            if len(comp_tickers) < 2:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Comparison requires 2-3 tickers",
+                )
+            # Build packets for all tickers
+            comp_packets: list[AssetAnalysisPacket] = [packet]
+            for t in comp_tickers[1:]:
+                pd = _build_packet_from_db(t)
+                if not pd:
+                    raise HTTPException(
+                        status_code=404, detail=f"Ticker {t} not found",
+                    )
+                comp_packets.append(AssetAnalysisPacket(
+                    issuer_id=pd["issuer_id"],
+                    ticker=pd["ticker"],
+                    sector=pd["sector"],
+                    subsector=pd["subsector"],
+                    classification=pd["classification"],
+                    fundamentals=pd["fundamentals"],
+                    trends={
+                        k: [PeriodValue(reference_date=pv["reference_date"], value=pv["value"]) for pv in v]
+                        for k, v in pd["trends"].items()
+                    },
+                    refiner_scores=pd["refiner_scores"],
+                    flags=pd["flags"],
+                    market_cap=pd["market_cap"],
+                    avg_daily_volume=pd["avg_daily_volume"],
+                    score_reliability=pd["score_reliability"],
+                ))
+            result = orchestrator.run_comparison(comp_tickers, comp_packets)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown mode: {req.mode}")
     except Exception as exc:
@@ -193,6 +228,11 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
     from dataclasses import asdict
 
     result_dict = asdict(result)
+    # Serialize comparison matrix if present
+    comp_matrix = None
+    if hasattr(result, "comparison_matrix") and result.comparison_matrix is not None:
+        comp_matrix = asdict(result.comparison_matrix)
+
     return CouncilResponse(
         session_id=result_dict["session_id"],
         mode=result_dict["mode"].value if hasattr(result_dict["mode"], "value") else str(result_dict["mode"]),
@@ -201,6 +241,7 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
         conflict_matrix=[asdict(c) if hasattr(c, "__dataclass_fields__") else c for c in result.conflict_matrix],
         moderator_synthesis=result_dict["moderator_synthesis"],
         debate_log=[asdict(d) if hasattr(d, "__dataclass_fields__") else d for d in (result.debate_log or [])],
+        comparison_matrix=comp_matrix,
         disclaimer=result.disclaimer,
         audit_trail=result_dict["audit_trail"],
     )

@@ -21,6 +21,8 @@ export default function HomePage() {
           <Link href="/portfolio">Portfolio</Link>
           <Link href="/backtest">Backtest</Link>
           <Link href="/universe">Universe</Link>
+          <Link href="/compare">Compare</Link>
+          <Link href="/chat">Chat</Link>
         </nav>
       </header>
       <div className="hero-scene">
