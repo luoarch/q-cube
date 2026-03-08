@@ -13,6 +13,7 @@ import { DashboardModule } from "./dashboard/dashboard.module.js";
 import { UniverseModule } from "./universe/universe.module.js";
 import { AssetModule } from "./asset/asset.module.js";
 import { PortfolioModule } from "./portfolio/portfolio.module.js";
+import { AIModule } from "./ai/ai.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 
 @Module({
@@ -34,7 +35,8 @@ import { AuthModule } from "./auth/auth.module.js";
     DashboardModule,
     UniverseModule,
     AssetModule,
-    PortfolioModule
+    PortfolioModule,
+    AIModule
   ],
   providers: [
     {

@@ -8,3 +8,4 @@ export * from "./domains/portfolio.js";
 export * from "./domains/universe.js";
 export * from "./domains/asset.js";
 export * from "./domains/backtest.js";
+export * from "./domains/ai.js";

@@ -62,6 +62,33 @@ module.exports = {
       env: {
         PYTHONUNBUFFERED: "1"
       }
+    },
+    {
+      name: "q3-ai-assistant",
+      cwd: "./services/ai-assistant",
+      script: ".venv/bin/python",
+      args: "-m q3_ai_assistant",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
+      name: "q3-ai-worker",
+      cwd: "./services/ai-assistant",
+      script: ".venv/bin/celery",
+      args: "-A q3_ai_assistant.celery_app worker -Q ai-ranking,ai-backtest --loglevel=info",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
+      name: "q3-ai-beat",
+      cwd: "./services/ai-assistant",
+      script: ".venv/bin/celery",
+      args: "-A q3_ai_assistant.celery_app beat --loglevel=info",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
     }
   ]
 };

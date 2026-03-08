@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q3-ai-assistant"
+version = "0.1.0"
+description = "Q3 AI assistant service — ranking explainer + backtest narrator"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.135.1",
+  "uvicorn>=0.41.0",
+  "celery>=5.6.0",
+  "redis>=5.0.0",
+  "pydantic>=2.12.5",
+  "pydantic-settings>=2.9.1",
+  "sqlalchemy>=2.0.48",
+  "alembic>=1.18.4",
+  "psycopg[binary]>=3.3.3",
+  "openai>=1.0",
+  "tenacity>=9.0.0",
+  "q3-shared-models",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.2",
+  "ruff>=0.15.5",
+  "pytest-asyncio>=1.0.0",
+]
+
+[project.scripts]
+q3-ai-assistant = "q3_ai_assistant.__main__:main"
+q3-ai-migrate = "q3_ai_assistant.migrations:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

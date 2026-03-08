@@ -310,3 +310,88 @@ export const marketSnapshots = pgTable("market_snapshots", {
 }, (t) => [
   unique("uq_market_snapshots_security_fetched").on(t.securityId, t.fetchedAt)
 ]);
+
+// ---------------------------------------------------------------------------
+// AI Assistant enums + tables
+// ---------------------------------------------------------------------------
+
+export const aiModuleEnum = pgEnum("ai_module", [
+  "ranking_explainer",
+  "backtest_narrator"
+]);
+
+export const aiReviewStatusEnum = pgEnum("review_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "expired"
+]);
+
+export const confidenceLevelEnum = pgEnum("confidence_level", [
+  "high",
+  "medium",
+  "low"
+]);
+
+export const explanationTypeEnum = pgEnum("explanation_type", [
+  "position",
+  "sector",
+  "outlier",
+  "metric"
+]);
+
+export const noteTypeEnum = pgEnum("note_type", [
+  "summary",
+  "concern",
+  "highlight",
+  "recommendation"
+]);
+
+export const aiSuggestions = pgTable("ai_suggestions", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  module: aiModuleEnum("module").notNull(),
+  triggerEvent: varchar("trigger_event", { length: 100 }).notNull(),
+  triggerEntityId: uuid("trigger_entity_id").notNull(),
+  inputHash: varchar("input_hash", { length: 64 }).notNull(),
+  promptVersion: varchar("prompt_version", { length: 20 }).notNull(),
+  outputSchemaVersion: varchar("output_schema_version", { length: 20 }).notNull(),
+  inputSnapshot: jsonb("input_snapshot").notNull(),
+  outputText: text("output_text").notNull(),
+  structuredOutput: jsonb("structured_output"),
+  confidence: confidenceLevelEnum("confidence").notNull(),
+  modelUsed: varchar("model_used", { length: 50 }).notNull(),
+  modelVersion: varchar("model_version", { length: 50 }).notNull(),
+  tokensUsed: integer("tokens_used").notNull(),
+  promptTokens: integer("prompt_tokens").notNull(),
+  completionTokens: integer("completion_tokens").notNull(),
+  costUsd: numeric("cost_usd").notNull().default("0"),
+  reviewStatus: aiReviewStatusEnum("review_status").notNull().default("pending"),
+  reviewedBy: uuid("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique("uq_ai_suggestions_dedup").on(t.module, t.triggerEntityId, t.inputHash, t.promptVersion),
+]);
+
+export const aiExplanations = pgTable("ai_explanations", {
+  id: uuid("id").primaryKey(),
+  suggestionId: uuid("suggestion_id")
+    .notNull()
+    .references(() => aiSuggestions.id, { onDelete: "cascade" }),
+  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityId: varchar("entity_id", { length: 100 }).notNull(),
+  explanationType: explanationTypeEnum("explanation_type").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const aiResearchNotes = pgTable("ai_research_notes", {
+  id: uuid("id").primaryKey(),
+  suggestionId: uuid("suggestion_id")
+    .notNull()
+    .references(() => aiSuggestions.id, { onDelete: "cascade" }),
+  noteType: noteTypeEnum("note_type").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
