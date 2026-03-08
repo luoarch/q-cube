@@ -32,12 +32,12 @@ def get_ranked_assets(session: Session, strategy_run_id: str) -> ToolResult:
 
 def get_refinement_results(session: Session, strategy_run_id: str) -> ToolResult:
     """Get refiner scores and flags for a strategy run."""
-    from q3_shared_models.entities import RefinementResult
+    from q3_shared_models.entities import RefinementResultModel
 
     rows = (
-        session.query(RefinementResult)
+        session.query(RefinementResultModel)
         .filter_by(strategy_run_id=strategy_run_id)
-        .order_by(RefinementResult.adjusted_rank)
+        .order_by(RefinementResultModel.adjusted_rank)
         .all()
     )
     if not rows:
@@ -63,12 +63,12 @@ def get_refinement_results(session: Session, strategy_run_id: str) -> ToolResult
 
 def get_company_flags(session: Session, ticker: str) -> ToolResult:
     """Get red/strength flags for a company from latest refiner run."""
-    from q3_shared_models.entities import RefinementResult
+    from q3_shared_models.entities import RefinementResultModel
 
     row = (
-        session.query(RefinementResult)
+        session.query(RefinementResultModel)
         .filter_by(ticker=ticker)
-        .order_by(RefinementResult.created_at.desc())
+        .order_by(RefinementResultModel.created_at.desc())
         .first()
     )
     if not row:
@@ -93,9 +93,123 @@ def get_company_summary(session: Session, ticker: str) -> ToolResult:
         data={
             "ticker": ticker,
             "issuer_id": str(issuer.id),
-            "company_name": issuer.company_name,
+            "company_name": issuer.legal_name,
+            "trade_name": issuer.trade_name,
             "sector": issuer.sector,
             "subsector": issuer.subsector,
             "segment": issuer.segment,
+        },
+    )
+
+
+def get_company_financials_3p(session: Session, ticker: str) -> ToolResult:
+    """Get 3-period financial data for a company."""
+    from q3_shared_models.entities import ComputedMetric, Security
+
+    security = session.query(Security).filter_by(ticker=ticker).first()
+    if not security:
+        return ToolResult(tool="get_company_financials_3p", data=None, error="Ticker not found")
+
+    metrics = (
+        session.query(ComputedMetric)
+        .filter_by(issuer_id=security.issuer_id, period_type="annual")
+        .order_by(ComputedMetric.reference_date.desc())
+        .limit(30)
+        .all()
+    )
+
+    trends: dict[str, list[dict]] = {}
+    for m in metrics:
+        code = m.metric_code
+        val = float(m.value) if m.value is not None else None
+        ref_date = str(m.reference_date)
+        trends.setdefault(code, []).append({"reference_date": ref_date, "value": val})
+
+    for code in trends:
+        trends[code] = sorted(trends[code], key=lambda x: x["reference_date"])[-3:]
+
+    return ToolResult(tool="get_company_financials_3p", data=trends)
+
+
+def get_market_snapshot(session: Session, ticker: str) -> ToolResult:
+    """Get latest market snapshot for a ticker."""
+    from q3_shared_models.entities import MarketSnapshot, Security
+
+    security = session.query(Security).filter_by(ticker=ticker).first()
+    if not security:
+        return ToolResult(tool="get_market_snapshot", data=None, error="Ticker not found")
+
+    snapshot = (
+        session.query(MarketSnapshot)
+        .filter_by(security_id=security.id)
+        .order_by(MarketSnapshot.fetched_at.desc())
+        .first()
+    )
+    if not snapshot:
+        return ToolResult(tool="get_market_snapshot", data=None, error="No market snapshot")
+
+    return ToolResult(
+        tool="get_market_snapshot",
+        data={
+            "ticker": ticker,
+            "price": float(snapshot.price) if snapshot.price else None,
+            "market_cap": float(snapshot.market_cap) if snapshot.market_cap else None,
+            "volume": float(snapshot.volume) if snapshot.volume else None,
+            "fetched_at": str(snapshot.fetched_at),
+            "source": snapshot.source.value if snapshot.source else None,
+        },
+    )
+
+
+def get_strategy_definition(strategy_type: str) -> ToolResult:
+    """Get strategy definition (deterministic, no DB needed)."""
+    definitions = {
+        "magic_formula": {
+            "name": "Magic Formula (Greenblatt)",
+            "description": "Ranks companies by earnings yield + ROIC. Combines value and quality.",
+            "metrics": ["earnings_yield", "roic"],
+            "ranking_method": "Combined percentile rank (50% EY + 50% ROIC)",
+        },
+    }
+
+    defn = definitions.get(strategy_type)
+    if not defn:
+        return ToolResult(
+            tool="get_strategy_definition", data=None,
+            error=f"Unknown strategy: {strategy_type}",
+        )
+    return ToolResult(tool="get_strategy_definition", data=defn)
+
+
+def get_data_lineage(session: Session, ticker: str, metric_code: str) -> ToolResult:
+    """Trace data lineage: filing -> statement_line -> computed_metric."""
+    from q3_shared_models.entities import ComputedMetric, Security
+
+    security = session.query(Security).filter_by(ticker=ticker).first()
+    if not security:
+        return ToolResult(tool="get_data_lineage", data=None, error="Ticker not found")
+
+    metric = (
+        session.query(ComputedMetric)
+        .filter_by(issuer_id=security.issuer_id, metric_code=metric_code)
+        .order_by(ComputedMetric.reference_date.desc())
+        .first()
+    )
+    if not metric:
+        return ToolResult(
+            tool="get_data_lineage", data=None,
+            error=f"Metric {metric_code} not found for {ticker}",
+        )
+
+    return ToolResult(
+        tool="get_data_lineage",
+        data={
+            "ticker": ticker,
+            "metric_code": metric_code,
+            "value": float(metric.value) if metric.value is not None else None,
+            "reference_date": str(metric.reference_date),
+            "period_type": metric.period_type,
+            "issuer_id": str(metric.issuer_id),
+            "source": "computed_metrics (derived from statement_lines <- filings <- CVM)",
         },
     )

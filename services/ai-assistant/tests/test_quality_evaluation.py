@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from q3_ai_assistant.evaluation.quality import (
     BANNED_PHRASES,
-    REQUIRED_OPINION_FIELDS,
     evaluate_council_result,
     evaluate_opinion,
 )

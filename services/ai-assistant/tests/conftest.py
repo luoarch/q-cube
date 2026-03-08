@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import JSON, create_engine, event
+from sqlalchemy import create_engine, event
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
@@ -19,7 +19,6 @@ from q3_ai_assistant.models.entities import (
     ConfidenceLevel,
     ExplanationType,
     NoteType,
-    ReviewStatus,
 )
 
 JSONB._default_dialect_inspections = set()  # type: ignore[attr-defined]

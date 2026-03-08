@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from q3_ai_assistant.council.debate.protocol import (
     MAX_CONTESTATIONS_PER_AGENT,
-    MAX_ROUNDS,
     build_contestation_prompt,
     build_reply_prompt,
     parse_contestations,
     parse_replies,
-    validate_debate_config,
 )
-from q3_ai_assistant.council.packet import PeriodValue
 from q3_ai_assistant.council.types import AgentOpinion, AgentVerdict
 
 

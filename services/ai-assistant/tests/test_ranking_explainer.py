@@ -5,7 +5,6 @@ import uuid
 from q3_ai_assistant.llm.mock_adapter import MockAdapter
 from q3_ai_assistant.models.entities import AIModule, ConfidenceLevel, ExplanationType, NoteType
 from q3_ai_assistant.modules.ranking_explainer import (
-    CONCENTRATION_THRESHOLD,
     compute_input_hash,
     explain_ranking,
     pre_analyze,

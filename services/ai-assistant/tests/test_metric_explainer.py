@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 
-import pytest
 
 from q3_ai_assistant.modules.metric_explainer import (
     compute_input_hash,

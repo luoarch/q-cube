@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from q3_ai_assistant.evaluation.evaluator import (
-    QualityScore,
     RegressionDetector,
     evaluate_backtest_narrative,
     evaluate_ranking_explanation,

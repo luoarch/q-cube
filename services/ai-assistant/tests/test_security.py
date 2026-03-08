@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 
 from q3_ai_assistant.security.input_guard import (
     MAX_RANKED_ASSETS,

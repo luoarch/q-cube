@@ -6,7 +6,6 @@ import pytest
 
 from q3_ai_assistant.rag.chunker import (
     MIN_CHUNK_SIZE,
-    Chunk,
     chunk_structured_data,
     chunk_text,
 )

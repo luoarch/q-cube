@@ -6,7 +6,6 @@ If triggered, verdict is locked to 'avoid'.
 
 from __future__ import annotations
 
-import pytest
 
 from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
 from q3_ai_assistant.council.agents.barsi import _negative_fcf_3_years, _negative_net_income_recurring

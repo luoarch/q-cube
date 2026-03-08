@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import math
 
-import pytest
 
 from q3_ai_assistant.rag.retriever import _cosine_similarity
 
