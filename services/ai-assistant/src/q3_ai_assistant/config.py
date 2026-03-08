@@ -7,11 +7,26 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://127.0.0.1:5432/q3"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Legacy single-provider (still works for existing modules)
     llm_provider: str = "openai"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     max_tokens: int = 2000
     temperature: float = 0.0
+
+    # Multi-provider cascade keys
+    anthropic_api_key: str = ""
+    google_api_key: str = ""
+
+    # Orchestrator pool models (premium reasoning)
+    orchestrator_openai_model: str = "gpt-5.4-pro"
+    orchestrator_anthropic_model: str = "claude-opus-4-6"
+    orchestrator_google_model: str = "gemini-2.5-pro"
+
+    # Specialist pool models (balanced quality/cost)
+    specialist_openai_model: str = "gpt-5.4"
+    specialist_anthropic_model: str = "claude-sonnet-4-6"
+    specialist_google_model: str = "gemini-2.5-pro"
 
     scan_interval_seconds: int = 30
     enabled: bool = True

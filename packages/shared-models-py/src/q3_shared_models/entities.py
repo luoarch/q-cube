@@ -402,6 +402,166 @@ class RestatementEvent(Base):
     affected_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
 
+class RefinementResultModel(Base):
+    __tablename__ = "refinement_results"
+    __table_args__ = (
+        UniqueConstraint("strategy_run_id", "issuer_id", name="uq_refinement_results_run_issuer"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    strategy_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("strategy_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    base_rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    earnings_quality_score: Mapped[float | None] = mapped_column(Numeric)
+    safety_score: Mapped[float | None] = mapped_column(Numeric)
+    operating_consistency_score: Mapped[float | None] = mapped_column(Numeric)
+    capital_discipline_score: Mapped[float | None] = mapped_column(Numeric)
+    refinement_score: Mapped[float | None] = mapped_column(Numeric)
+    adjusted_score: Mapped[float | None] = mapped_column(Numeric)
+    adjusted_rank: Mapped[int | None] = mapped_column(Integer)
+    flags_json: Mapped[dict | None] = mapped_column(JSONB)
+    trend_data_json: Mapped[dict | None] = mapped_column(JSONB)
+    scoring_details_json: Mapped[dict | None] = mapped_column(JSONB)
+    data_completeness_json: Mapped[dict | None] = mapped_column(JSONB)
+    score_reliability: Mapped[str | None] = mapped_column(String)
+    issuer_classification: Mapped[str | None] = mapped_column(String)
+    formula_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    weights_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str | None] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String, nullable=False, server_default="free_chat")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_id: Mapped[str | None] = mapped_column(String)
+    tool_calls_json: Mapped[dict | None] = mapped_column(JSONB)
+    tokens_used: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Numeric)
+    provider_used: Mapped[str | None] = mapped_column(String)
+    model_used: Mapped[str | None] = mapped_column(String)
+    fallback_level: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CouncilSession(Base):
+    __tablename__ = "council_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mode: Mapped[str] = mapped_column(String, nullable=False)
+    asset_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    agent_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CouncilOpinion(Base):
+    __tablename__ = "council_opinions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    council_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("council_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_id: Mapped[str] = mapped_column(String, nullable=False)
+    verdict: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    opinion_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    hard_rejects_json: Mapped[dict | None] = mapped_column(JSONB)
+    profile_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    prompt_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    provider_used: Mapped[str | None] = mapped_column(String)
+    model_used: Mapped[str | None] = mapped_column(String)
+    fallback_level: Mapped[int | None] = mapped_column(Integer)
+    tokens_used: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Numeric)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CouncilDebate(Base):
+    __tablename__ = "council_debates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    council_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("council_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    round_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    agent_id: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    target_agent_id: Mapped[str | None] = mapped_column(String)
+    provider_used: Mapped[str | None] = mapped_column(String)
+    model_used: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CouncilSynthesis(Base):
+    __tablename__ = "council_syntheses"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    council_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("council_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scoreboard_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    conflicts_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    synthesis_text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class MarketSnapshot(Base):
     __tablename__ = "market_snapshots"
     __table_args__ = (

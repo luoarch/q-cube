@@ -49,6 +49,19 @@ def run_strategy_task(
 
             ranked_assets = run_strategy(session, parsed_tenant_id, strategy)
 
+            # Run refiner on top 30 (deterministic, no LLM)
+            try:
+                from q3_quant_engine.refiner.engine import RefinerEngine
+                refiner = RefinerEngine(session)
+                refiner.refine(
+                    run_id=parsed_run_id,
+                    tenant_id=parsed_tenant_id,
+                    top_n=30,
+                    ranked_assets=ranked_assets,
+                )
+            except Exception as refiner_exc:  # noqa: BLE001
+                logger.warning("Refiner failed (non-fatal) run=%s: %s", run_id, refiner_exc)
+
             run.status = RunStatus.completed
             run.result_json = {
                 "strategy": strategy,

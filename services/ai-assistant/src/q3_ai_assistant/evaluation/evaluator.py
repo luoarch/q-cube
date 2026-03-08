@@ -51,6 +51,25 @@ def evaluate_backtest_narrative(input_data: dict, output: dict) -> QualityScore:
     )
 
 
+def evaluate_metric_explanation(input_data: dict, output: dict) -> QualityScore:
+    required = ["metricCode", "definition", "companyReading", "trendInterpretation"]
+    completeness = _check_fields(output, required)
+    coherence = _check_length(output.get("companyReading", ""), min_chars=20, max_chars=1000)
+
+    # Groundedness: metric code in output matches input
+    metric_match = output.get("metricCode") == input_data.get("metric_code")
+    groundedness = 1.0 if metric_match else 0.0
+
+    overall = 0.4 * completeness + 0.3 * coherence + 0.3 * groundedness
+    return QualityScore(
+        completeness=completeness,
+        parseable=True,
+        coherence=coherence,
+        groundedness=groundedness,
+        overall=round(overall, 3),
+    )
+
+
 class RegressionDetector:
     def __init__(self, threshold: float = 0.1) -> None:
         self.threshold = threshold

@@ -23,6 +23,7 @@ from q3_ai_assistant.db.base import Base
 class AIModule(str, enum.Enum):
     ranking_explainer = "ranking_explainer"
     backtest_narrator = "backtest_narrator"
+    metric_explainer = "metric_explainer"
 
 
 class ReviewStatus(str, enum.Enum):

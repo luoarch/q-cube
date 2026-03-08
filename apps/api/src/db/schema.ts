@@ -332,6 +332,60 @@ export const marketSnapshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Refinement results (Top-30 Refiner)
+// ---------------------------------------------------------------------------
+
+export const scoreReliabilityEnum = pgEnum('score_reliability', [
+  'high',
+  'medium',
+  'low',
+  'unavailable',
+]);
+
+export const issuerClassificationEnum = pgEnum('issuer_classification', [
+  'non_financial',
+  'bank',
+  'insurer',
+  'utility',
+  'holding',
+]);
+
+export const refinementResults = pgTable(
+  'refinement_results',
+  {
+    id: uuid('id').primaryKey(),
+    strategyRunId: uuid('strategy_run_id')
+      .notNull()
+      .references(() => strategyRuns.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id, { onDelete: 'cascade' }),
+    ticker: varchar('ticker', { length: 20 }).notNull(),
+    baseRank: integer('base_rank').notNull(),
+    earningsQualityScore: numeric('earnings_quality_score'),
+    safetyScore: numeric('safety_score'),
+    operatingConsistencyScore: numeric('operating_consistency_score'),
+    capitalDisciplineScore: numeric('capital_discipline_score'),
+    refinementScore: numeric('refinement_score'),
+    adjustedScore: numeric('adjusted_score'),
+    adjustedRank: integer('adjusted_rank'),
+    flagsJson: jsonb('flags_json'),
+    trendDataJson: jsonb('trend_data_json'),
+    scoringDetailsJson: jsonb('scoring_details_json'),
+    dataCompletenessJson: jsonb('data_completeness_json'),
+    scoreReliability: varchar('score_reliability', { length: 20 }),
+    issuerClassification: varchar('issuer_classification', { length: 20 }),
+    formulaVersion: integer('formula_version').notNull().default(1),
+    weightsVersion: integer('weights_version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique('uq_refinement_results_run_issuer').on(t.strategyRunId, t.issuerId)],
+);
+
+// ---------------------------------------------------------------------------
 // AI Assistant enums + tables
 // ---------------------------------------------------------------------------
 
@@ -410,5 +464,137 @@ export const aiResearchNotes = pgTable('ai_research_notes', {
     .references(() => aiSuggestions.id, { onDelete: 'cascade' }),
   noteType: noteTypeEnum('note_type').notNull(),
   content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Chat + Council tables
+// ---------------------------------------------------------------------------
+
+export const chatModeEnum = pgEnum('chat_mode', [
+  'free_chat',
+  'agent_solo',
+  'roundtable',
+  'debate',
+  'comparison',
+]);
+
+export const chatRoleEnum = pgEnum('chat_role', [
+  'user',
+  'assistant',
+  'system',
+  'tool',
+  'agent',
+]);
+
+export const agentIdEnum = pgEnum('agent_id', [
+  'barsi',
+  'graham',
+  'greenblatt',
+  'buffett',
+  'moderator',
+]);
+
+export const agentVerdictEnum = pgEnum('agent_verdict', [
+  'buy',
+  'watch',
+  'avoid',
+  'insufficient_data',
+]);
+
+export const councilModeEnum = pgEnum('council_mode', [
+  'solo',
+  'roundtable',
+  'debate',
+  'comparison',
+]);
+
+export const chatSessions = pgTable('chat_sessions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title'),
+  mode: chatModeEnum('mode').notNull().default('free_chat'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+});
+
+export const chatMessages = pgTable('chat_messages', {
+  id: uuid('id').primaryKey(),
+  sessionId: uuid('session_id')
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: 'cascade' }),
+  role: chatRoleEnum('role').notNull(),
+  content: text('content').notNull(),
+  agentId: varchar('agent_id', { length: 20 }),
+  toolCallsJson: jsonb('tool_calls_json'),
+  tokensUsed: integer('tokens_used'),
+  costUsd: numeric('cost_usd'),
+  providerUsed: varchar('provider_used', { length: 20 }),
+  modelUsed: varchar('model_used', { length: 50 }),
+  fallbackLevel: integer('fallback_level'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const councilSessions = pgTable('council_sessions', {
+  id: uuid('id').primaryKey(),
+  chatSessionId: uuid('chat_session_id')
+    .references(() => chatSessions.id, { onDelete: 'cascade' }),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id, { onDelete: 'cascade' }),
+  mode: councilModeEnum('mode').notNull(),
+  assetIds: jsonb('asset_ids').notNull(),
+  agentIds: jsonb('agent_ids').notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const councilOpinions = pgTable('council_opinions', {
+  id: uuid('id').primaryKey(),
+  councilSessionId: uuid('council_session_id')
+    .notNull()
+    .references(() => councilSessions.id, { onDelete: 'cascade' }),
+  agentId: varchar('agent_id', { length: 20 }).notNull(),
+  verdict: agentVerdictEnum('verdict').notNull(),
+  confidence: integer('confidence').notNull(),
+  opinionJson: jsonb('opinion_json').notNull(),
+  hardRejectsJson: jsonb('hard_rejects_json'),
+  profileVersion: integer('profile_version').notNull().default(1),
+  promptVersion: integer('prompt_version').notNull().default(1),
+  providerUsed: varchar('provider_used', { length: 20 }),
+  modelUsed: varchar('model_used', { length: 50 }),
+  fallbackLevel: integer('fallback_level'),
+  tokensUsed: integer('tokens_used'),
+  costUsd: numeric('cost_usd'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const councilDebates = pgTable('council_debates', {
+  id: uuid('id').primaryKey(),
+  councilSessionId: uuid('council_session_id')
+    .notNull()
+    .references(() => councilSessions.id, { onDelete: 'cascade' }),
+  roundNumber: integer('round_number').notNull(),
+  agentId: varchar('agent_id', { length: 20 }).notNull(),
+  content: text('content').notNull(),
+  targetAgentId: varchar('target_agent_id', { length: 20 }),
+  providerUsed: varchar('provider_used', { length: 20 }),
+  modelUsed: varchar('model_used', { length: 50 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const councilSyntheses = pgTable('council_syntheses', {
+  id: uuid('id').primaryKey(),
+  councilSessionId: uuid('council_session_id')
+    .notNull()
+    .references(() => councilSessions.id, { onDelete: 'cascade' }),
+  scoreboardJson: jsonb('scoreboard_json').notNull(),
+  conflictsJson: jsonb('conflicts_json').notNull(),
+  synthesisText: text('synthesis_text').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
