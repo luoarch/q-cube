@@ -31,4 +31,15 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
   return res.json() as Promise<T>;
 }
 
-export const apiClient = { get, ApiError };
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const url = new URL(path, BASE_URL);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json() as Promise<T>;
+}
+
+export const apiClient = { get, post, ApiError };
