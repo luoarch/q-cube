@@ -62,6 +62,7 @@ class Retriever:
             )
         except Exception:
             logger.debug("pgvector query failed, falling back to Python cosine similarity")
+            session.rollback()
             return self._search_python(
                 session, query_embedding.vector, top_k=top_k,
                 entity_type=entity_type, threshold=threshold,
@@ -88,10 +89,10 @@ class Retriever:
 
         sql = text(f"""
             SELECT entity_type, entity_id, chunk_index, chunk_text, metadata_json,
-                   1 - (embedding <=> :vec::halfvec({EMBEDDING_DIM})) AS similarity
+                   1 - (embedding <=> CAST(:vec AS halfvec({EMBEDDING_DIM}))) AS similarity
             FROM embeddings
             {where_clause}
-            ORDER BY embedding <=> :vec::halfvec({EMBEDDING_DIM})
+            ORDER BY embedding <=> CAST(:vec AS halfvec({EMBEDDING_DIM}))
             LIMIT :top_k
         """)
 
@@ -130,6 +131,8 @@ class Retriever:
         scored: list[tuple[float, Embedding]] = []
         for row in rows:
             vec = row.embedding
+            if hasattr(vec, "to_list"):
+                vec = vec.to_list()
             if isinstance(vec, (list, tuple)) and len(vec) == len(query_vec):
                 sim = _cosine_similarity(list(vec), query_vec)
                 if sim >= threshold:
