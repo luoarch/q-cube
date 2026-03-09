@@ -56,7 +56,7 @@ export function QCubeScene() {
       <SceneCanvas className="scene-canvas">
         <QCubeInner />
       </SceneCanvas>
-      {items.length > 0 && <HudLegend items={items} />}
+      {items.length > 0 && new Set(items.map((it) => it.sector)).size > 1 && <HudLegend items={items} />}
       {isLoading && <div className="scene-loading-overlay">Carregando ranking...</div>}
     </div>
   );
