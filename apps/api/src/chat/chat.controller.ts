@@ -4,8 +4,10 @@ import {
   Get,
   Inject,
   Logger,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -80,6 +82,16 @@ export class ChatController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.chatService.getMessages(sessionId, user.tenantId);
+  }
+
+  @Patch('sessions/:id/archive')
+  async archiveSession(
+    @Param('id', new ParseUUIDPipe()) sessionId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.chatService.archiveSession(sessionId, user.tenantId);
+    if (!result) throw new NotFoundException('Session not found');
+    return result;
   }
 
   @Get('budget')

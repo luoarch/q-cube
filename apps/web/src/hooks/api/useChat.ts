@@ -34,3 +34,11 @@ export function useSendMessage(sessionId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-messages', sessionId] }),
   });
 }
+
+export function useArchiveSession() {
+  const qc = useQueryClient();
+  return useMutation<ChatSession, Error, string>({
+    mutationFn: (sessionId) => apiClient.patch<ChatSession>(`/chat/sessions/${sessionId}/archive`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-sessions'] }),
+  });
+}

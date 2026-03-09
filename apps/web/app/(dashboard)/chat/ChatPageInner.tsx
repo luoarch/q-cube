@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  useArchiveSession,
   useChatMessages,
   useChatSessions,
   useCreateChatSession,
@@ -222,6 +223,7 @@ export function ChatPageInner() {
 
   const { data: sessions } = useChatSessions();
   const createSession = useCreateChatSession();
+  const archiveSession = useArchiveSession();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<ChatMode>(tickerParam ? 'roundtable' : 'free_chat');
   const [initialTicker] = useState(tickerParam ?? '');
@@ -273,16 +275,35 @@ export function ChatPageInner() {
             <SessionListSkeleton />
           ) : (
             sessions.map((s) => (
-              <button
+              <div
                 key={s.id}
-                onClick={() => setActiveSessionId(s.id)}
                 className={`${styles.sessionButton} ${s.id === activeSessionId ? styles.sessionButtonActive : ''}`}
+                onClick={() => setActiveSessionId(s.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') setActiveSessionId(s.id); }}
               >
-                <div className={styles.sessionTitle}>{s.title ?? MODE_LABELS[s.mode]}</div>
-                <div className={styles.sessionDate}>
-                  {new Date(s.createdAt).toLocaleDateString('pt-BR')}
+                <div className={styles.sessionRow}>
+                  <div className={styles.sessionInfo}>
+                    <div className={styles.sessionTitle}>{s.title ?? MODE_LABELS[s.mode]}</div>
+                    <div className={styles.sessionDate}>
+                      {new Date(s.createdAt).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                  <button
+                    className={styles.archiveButton}
+                    title="Arquivar sessao"
+                    aria-label="Arquivar sessao"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeSessionId === s.id) setActiveSessionId(null);
+                      archiveSession.mutate(s.id);
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </aside>

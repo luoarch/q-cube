@@ -8,7 +8,7 @@ import {
   chatMessageSchema,
   chatSessionSchema,
 } from '@q3/shared-contracts';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
 
 import { DB } from '../database/database.constants.js';
 import { chatMessages, chatSessions } from '../db/schema.js';
@@ -45,11 +45,19 @@ export class ChatService {
     });
   }
 
-  async listSessions(tenantId: string, userId: string) {
+  async listSessions(tenantId: string, userId: string, includeArchived = false) {
+    const conditions = [
+      eq(chatSessions.tenantId, tenantId),
+      eq(chatSessions.userId, userId),
+    ];
+    if (!includeArchived) {
+      conditions.push(isNull(chatSessions.archivedAt));
+    }
+
     const rows = await this.db
       .select()
       .from(chatSessions)
-      .where(and(eq(chatSessions.tenantId, tenantId), eq(chatSessions.userId, userId)))
+      .where(and(...conditions))
       .orderBy(desc(chatSessions.createdAt))
       .limit(50);
 
@@ -60,6 +68,41 @@ export class ChatService {
         archivedAt: row.archivedAt?.toISOString() ?? null,
       }),
     );
+  }
+
+  async archiveSession(sessionId: string, tenantId: string) {
+    const rows = await this.db
+      .update(chatSessions)
+      .set({ archivedAt: sql`now()` })
+      .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.tenantId, tenantId)))
+      .returning();
+
+    if (!rows.length) return null;
+    const row = rows[0]!;
+    return chatSessionSchema.parse({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      archivedAt: row.archivedAt?.toISOString() ?? null,
+    });
+  }
+
+  async autoArchiveOldSessions(tenantId: string, olderThanDays = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - olderThanDays);
+
+    const result = await this.db
+      .update(chatSessions)
+      .set({ archivedAt: sql`now()` })
+      .where(
+        and(
+          eq(chatSessions.tenantId, tenantId),
+          isNull(chatSessions.archivedAt),
+          lt(chatSessions.createdAt, cutoff),
+        ),
+      )
+      .returning({ id: chatSessions.id });
+
+    return result.length;
   }
 
   async getMessages(sessionId: string, tenantId: string) {

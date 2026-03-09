@@ -53,4 +53,17 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const apiClient = { get, post, put, ApiError };
+async function patch<T>(path: string, body?: unknown): Promise<T> {
+  const url = new URL(path, BASE_URL);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const init: RequestInit = { method: 'PATCH', headers };
+  if (body != null) init.body = JSON.stringify(body);
+  const res = await fetch(url, init);
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json() as Promise<T>;
+}
+
+export const apiClient = { get, post, put, patch, ApiError };
