@@ -58,6 +58,52 @@ class ScopeType(str, enum.Enum):
     ind = "ind"
 
 
+class CanonicalKey(str, enum.Enum):
+    """Canonical financial statement line keys (CVM CD_CONTA mapping)."""
+
+    revenue = "revenue"
+    cost_of_goods_sold = "cost_of_goods_sold"
+    gross_profit = "gross_profit"
+    operating_expenses = "operating_expenses"
+    ebit = "ebit"
+    financial_result = "financial_result"
+    ebt = "ebt"
+    income_tax = "income_tax"
+    net_income = "net_income"
+    total_assets = "total_assets"
+    current_assets = "current_assets"
+    cash_and_equivalents = "cash_and_equivalents"
+    non_current_assets = "non_current_assets"
+    fixed_assets = "fixed_assets"
+    intangible_assets = "intangible_assets"
+    total_liabilities = "total_liabilities"
+    current_liabilities = "current_liabilities"
+    short_term_debt = "short_term_debt"
+    non_current_liabilities = "non_current_liabilities"
+    long_term_debt = "long_term_debt"
+    equity = "equity"
+    cash_from_operations = "cash_from_operations"
+    cash_from_investing = "cash_from_investing"
+    cash_from_financing = "cash_from_financing"
+
+
+class MetricCode(str, enum.Enum):
+    """Derived metric codes computed by the MetricsEngine."""
+
+    ebitda = "ebitda"
+    net_debt = "net_debt"
+    roic = "roic"
+    roe = "roe"
+    earnings_yield = "earnings_yield"
+    enterprise_value = "enterprise_value"
+    gross_margin = "gross_margin"
+    ebit_margin = "ebit_margin"
+    net_margin = "net_margin"
+    cash_conversion = "cash_conversion"
+    debt_to_ebitda = "debt_to_ebitda"
+    interest_coverage = "interest_coverage"
+
+
 class SourceProvider(str, enum.Enum):
     cvm = "cvm"
     brapi = "brapi"

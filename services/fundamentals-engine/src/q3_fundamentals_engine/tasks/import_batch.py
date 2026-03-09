@@ -19,6 +19,7 @@ from q3_fundamentals_engine.pipeline_steps import (
     step_parse,
     step_refresh_compat_view,
     step_resolve_issuers,
+    step_smoke_tests,
     step_validate_filings,
 )
 from q3_fundamentals_engine.providers.cvm.adapter import CvmProviderAdapter
@@ -124,6 +125,11 @@ def import_cvm_batch(batch_id: str, year: int, doc_types: list[str]) -> dict:
         # --- Step 5: Compute metrics ---
         metrics_computed = step_compute_filing_metrics(session, filing_ids)
         session.commit()
+
+        # --- Step 5b: Smoke tests ---
+        smoke_ok = step_smoke_tests(session)
+        if not smoke_ok:
+            logger.error("Smoke tests failed for batch %s — compat view will still refresh but data may be suspect", batch_id)
 
         # Refresh materialized compat view
         step_refresh_compat_view(session)

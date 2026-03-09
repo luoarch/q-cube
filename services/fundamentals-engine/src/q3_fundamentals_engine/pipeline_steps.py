@@ -226,6 +226,27 @@ def step_compute_filing_metrics(session: Session, filing_ids: list[uuid.UUID]) -
     return metrics_computed
 
 
+def step_smoke_tests(session: Session) -> bool:
+    """Run post-ingestion smoke tests. Returns True if all passed."""
+    from q3_fundamentals_engine.validation.smoke_tests import run_smoke_tests
+
+    results = run_smoke_tests(session)
+    all_passed = all(r.passed for r in results)
+    passed_count = sum(1 for r in results if r.passed)
+
+    if all_passed:
+        logger.info("All %d smoke tests passed", len(results))
+    else:
+        failed = [r for r in results if not r.passed]
+        logger.error(
+            "SMOKE TESTS FAILED: %d/%d passed. Failures: %s",
+            passed_count, len(results),
+            ", ".join(f.name for f in failed),
+        )
+
+    return all_passed
+
+
 def step_refresh_compat_view(session: Session) -> None:
     """Refresh the v_financial_statements_compat materialized view."""
     try:

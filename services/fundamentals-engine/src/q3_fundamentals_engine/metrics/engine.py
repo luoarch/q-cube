@@ -8,6 +8,7 @@ from q3_shared_models.entities import (
     ComputedMetric,
     Filing,
     FilingStatus,
+    MetricCode,
     PeriodType,
     StatementLine,
 )
@@ -54,7 +55,7 @@ class MetricsEngine:
         ]
 
     # Strategies that depend on market_cap (market data, not CVM filings)
-    _MARKET_DEPENDENT_CODES = {"enterprise_value", "earnings_yield"}
+    _MARKET_DEPENDENT_CODES = {MetricCode.enterprise_value, MetricCode.earnings_yield}
 
     def compute_for_issuer(
         self,

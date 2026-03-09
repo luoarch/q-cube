@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from q3_shared_models.entities import MetricCode
+
 from q3_fundamentals_engine.metrics.base import IndicatorStrategy, MetricResult
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class NetDebtStrategy(IndicatorStrategy):
         }
 
         return MetricResult(
-            metric_code="net_debt",
+            metric_code=MetricCode.net_debt,
             value=result,
             formula_version=1,
             inputs_snapshot=inputs,

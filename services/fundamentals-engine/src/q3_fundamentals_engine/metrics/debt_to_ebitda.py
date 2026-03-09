@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from q3_shared_models.entities import MetricCode
+
 from q3_fundamentals_engine.metrics.base import IndicatorStrategy, MetricResult
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class DebtToEbitdaStrategy(IndicatorStrategy):
         result = net_debt / ebitda
 
         return MetricResult(
-            metric_code="debt_to_ebitda",
+            metric_code=MetricCode.debt_to_ebitda,
             value=result,
             formula_version=1,
             inputs_snapshot={

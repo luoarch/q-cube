@@ -158,13 +158,24 @@ class NormalizationPipeline:
             )
             self._session.add(filing)
 
-            # Create StatementLines
+            # Create StatementLines (with dedup safety net)
             lines_created = 0
+            seen_keys: set[tuple[str | None, str, str, str, str]] = set()
             for row in scoped_rows:
                 canonical_key = CanonicalKeyMapper.map(row.account_code)
                 normalized_value = normalize_sign(canonical_key, row.value)
                 statement_type = _resolve_statement_type(row.statement_type)
                 scope_type = _resolve_scope_type(chosen_scope)
+
+                dedup_key = (canonical_key, statement_type.value, scope_type.value, period_type.value, str(ref_date))
+                if dedup_key in seen_keys:
+                    logger.warning(
+                        "Duplicate statement_line skipped: canonical_key=%s stmt=%s scope=%s period=%s ref=%s",
+                        canonical_key, statement_type.value, scope_type.value, period_type.value, ref_date,
+                    )
+                    continue
+                if canonical_key is not None:
+                    seen_keys.add(dedup_key)
 
                 line = StatementLine(
                     id=uuid.uuid4(),

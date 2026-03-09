@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from q3_shared_models.entities import MetricCode
+
 from q3_fundamentals_engine.metrics.base import IndicatorStrategy, MetricResult
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class GrossMarginStrategy(IndicatorStrategy):
         result = gross_profit / revenue
 
         return MetricResult(
-            metric_code="gross_margin",
+            metric_code=MetricCode.gross_margin,
             value=result,
             formula_version=1,
             inputs_snapshot={"gross_profit": gross_profit, "revenue": revenue},
@@ -65,7 +67,7 @@ class EbitMarginStrategy(IndicatorStrategy):
         result = ebit / revenue
 
         return MetricResult(
-            metric_code="ebit_margin",
+            metric_code=MetricCode.ebit_margin,
             value=result,
             formula_version=1,
             inputs_snapshot={"ebit": ebit, "revenue": revenue},
@@ -98,7 +100,7 @@ class NetMarginStrategy(IndicatorStrategy):
         result = net_income / revenue
 
         return MetricResult(
-            metric_code="net_margin",
+            metric_code=MetricCode.net_margin,
             value=result,
             formula_version=1,
             inputs_snapshot={"net_income": net_income, "revenue": revenue},

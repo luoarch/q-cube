@@ -236,6 +236,7 @@ sequenceDiagram
     Worker->>Worker: Extract CSVs from ZIP
     Worker->>Worker: DfpParser.run() → 789K ParsedRows
     Worker->>Worker: Version dedup → filter latest VERSAO
+    Worker->>Worker: Filter PENÚLTIMO (prior-year) → ~50% rows discarded
 
     Note over Worker: Step 3 - Normalize
     loop Each (cd_cvm, ref_date, version) group
@@ -323,6 +324,7 @@ POST /batches/cvm/{year}
        |       -> ParsedRow[] em memoria
        |
        +-- 3. Normalize (Canonical Mapper)
+       |       Filter PENÚLTIMO (prior-year comparison data)
        |       CD_CONTA CVM -> canonical_key interno
        |       Scope resolution (con > ind)
        |       Sign normalization (COGS negativo)
@@ -634,13 +636,33 @@ O ranking.py automaticamente le da compat view ao inves das tabelas antigas.
 |--------|------|
 | `raw_source_batches` | 3 (DFP + ITR + FCA) |
 | `raw_source_files` | 3 (44.3 MB total) |
-| `issuers` | 740 |
-| `securities` | 439 |
+| `issuers` | 741 |
+| `securities` | 440 |
 | `filings` | 2,867 |
-| `statement_lines` | 1,910,612 |
-| `computed_metrics` | 16,255 |
+| `statement_lines` | 955,506 |
+| `computed_metrics` | 25,988 |
 
-Spot checks:
-- Petrobras: EBIT R$189.3B, ROIC 25.7%
-- Vale: EBIT R$65.3B
-- 6 metricas por issuer por periodo
+> **Nota:** Ate 2026-03-09 o pipeline armazenava PENULTIMO (exercicio anterior) como dados atuais, gerando duplicatas (~50% a mais). Apos a correcao, statement_lines caiu de 1.9M para 955K e metricas derivadas foram recalculadas com valores corretos. Zero duplicatas confirmadas.
+
+## Protecao contra dados incorretos
+
+### PENULTIMO filter (normalization/pipeline.py)
+
+DFP/ITR da CVM incluem colunas "Exercicio Atual" (ULTIMO) e "Exercicio Anterior" (PENULTIMO). O pipeline descarta todas as linhas PENULTIMO no passo de normalizacao, evitando duplicatas e contaminacao de metricas derivadas.
+
+### Validation layer
+
+- `AccountingValidator`: verifica Ativo = Passivo + PL
+- `AnomalyDetector`: detecta ROIC > 500%, equity negativo, margens impossiveis
+- Resultados salvos em `filings.validation_result`
+
+### Unique constraints
+
+- `computed_metrics`: UNIQUE `(issuer_id, metric_code, period_type, reference_date)` — impede metricas duplicadas
+- `raw_source_files.sha256_hash`: impede re-import do mesmo arquivo
+- `issuers.cvm_code`: ON CONFLICT DO NOTHING
+
+### Auditabilidade
+
+- Cada `computed_metric` salva `formula_version` + `inputs_snapshot_json` + `source_filing_ids_json`
+- Metricas podem ser recalculadas e comparadas

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query
-from q3_shared_models.entities import ComputedMetric, Issuer, Security
+from q3_shared_models.entities import ComputedMetric, Issuer, MetricCode, Security
 from sqlalchemy import select
 
 from q3_fundamentals_engine.db.session import SessionLocal
@@ -75,7 +75,7 @@ def get_rankings(
         if not reference_date:
             latest = session.execute(
                 select(ComputedMetric.reference_date)
-                .where(ComputedMetric.metric_code == "roic")
+                .where(ComputedMetric.metric_code == MetricCode.roic)
                 .order_by(ComputedMetric.reference_date.desc())
                 .limit(1)
             ).scalar_one_or_none()
@@ -89,7 +89,7 @@ def get_rankings(
         ey_metrics = session.execute(
             select(ComputedMetric)
             .where(
-                ComputedMetric.metric_code == "earnings_yield",
+                ComputedMetric.metric_code == MetricCode.earnings_yield,
                 ComputedMetric.reference_date == ref_date,
                 ComputedMetric.value.is_not(None),
             )
@@ -98,7 +98,7 @@ def get_rankings(
         roic_metrics = session.execute(
             select(ComputedMetric)
             .where(
-                ComputedMetric.metric_code == "roic",
+                ComputedMetric.metric_code == MetricCode.roic,
                 ComputedMetric.reference_date == ref_date,
                 ComputedMetric.value.is_not(None),
             )
@@ -108,7 +108,7 @@ def get_rankings(
         ebit_margin_metrics = session.execute(
             select(ComputedMetric)
             .where(
-                ComputedMetric.metric_code == "ebit_margin",
+                ComputedMetric.metric_code == MetricCode.ebit_margin,
                 ComputedMetric.reference_date == ref_date,
                 ComputedMetric.value.is_not(None),
             )

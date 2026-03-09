@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from q3_shared_models.entities import MetricCode
+
 from q3_fundamentals_engine.metrics.base import IndicatorStrategy, MetricResult
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ class InterestCoverageStrategy(IndicatorStrategy):
         result = ebit / interest_expense
 
         return MetricResult(
-            metric_code="interest_coverage",
+            metric_code=MetricCode.interest_coverage,
             value=result,
             formula_version=1,
             inputs_snapshot={
