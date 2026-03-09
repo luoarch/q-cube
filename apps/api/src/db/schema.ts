@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   date,
   integer,
   jsonb,
@@ -343,7 +344,9 @@ export const embeddings = pgTable(
     entityId: varchar('entity_id', { length: 255 }).notNull(),
     chunkIndex: integer('chunk_index').notNull().default(0),
     chunkText: text('chunk_text').notNull(),
-    embedding: jsonb('embedding').notNull(), // VECTOR(1536) when pgvector extension is enabled
+    embedding: customType<{ data: unknown; driverData: unknown }>({
+      dataType: () => 'halfvec(1536)',
+    })('embedding').notNull(),
     metadataJson: jsonb('metadata_json'),
     modelUsed: varchar('model_used', { length: 50 }).notNull().default('text-embedding-3-small'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

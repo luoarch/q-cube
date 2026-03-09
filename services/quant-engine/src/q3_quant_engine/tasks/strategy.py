@@ -69,6 +69,14 @@ def run_strategy_task(
                 "rankedAssets": ranked_assets,
                 "generatedAt": _now_iso(),
             }
+
+            # Index results into RAG embeddings (non-fatal)
+            try:
+                from q3_ai_assistant.rag.auto_indexer import index_refiner_results, index_strategy_run
+                index_strategy_run(session, parsed_run_id)
+                index_refiner_results(session, str(parsed_run_id))
+            except Exception as rag_exc:  # noqa: BLE001
+                logger.warning("RAG indexing failed (non-fatal) run=%s: %s", run_id, rag_exc)
             run.error_message = None
 
             job.status = RunStatus.completed

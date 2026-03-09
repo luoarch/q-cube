@@ -1,4 +1,4 @@
-"""Retrieval from embedding store using cosine similarity."""
+"""Retrieval from embedding store using pgvector cosine similarity."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from q3_ai_assistant.rag.embedder import Embedder
+from q3_ai_assistant.rag.embedder import EMBEDDING_DIM, Embedder
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 class Retriever:
-    """Retrieve relevant chunks from the embeddings table."""
+    """Retrieve relevant chunks from the embeddings table using pgvector HNSW."""
 
     def __init__(self, embedder: Embedder) -> None:
         self._embedder = embedder
@@ -52,21 +52,16 @@ class Retriever:
         entity_type: str | None = None,
         threshold: float = SIMILARITY_THRESHOLD,
     ) -> list[RetrievalResult]:
-        """Search for chunks similar to the query.
-
-        Uses pgvector's cosine distance operator if the embedding column is VECTOR type,
-        otherwise falls back to Python-side cosine similarity on JSONB arrays.
-        """
+        """Search for chunks similar to the query using pgvector halfvec cosine distance."""
         query_embedding = self._embedder.embed_single(query)
 
-        # Try pgvector cosine distance first
         try:
             return self._search_pgvector(
                 session, query_embedding.vector, top_k=top_k,
                 entity_type=entity_type, threshold=threshold,
             )
         except Exception:
-            logger.debug("pgvector not available, falling back to Python cosine similarity")
+            logger.debug("pgvector query failed, falling back to Python cosine similarity")
             return self._search_python(
                 session, query_embedding.vector, top_k=top_k,
                 entity_type=entity_type, threshold=threshold,
@@ -81,23 +76,26 @@ class Retriever:
         entity_type: str | None,
         threshold: float,
     ) -> list[RetrievalResult]:
-        """Search using pgvector's <=> cosine distance operator."""
+        """Search using pgvector's <=> cosine distance operator on halfvec column."""
         vec_literal = "[" + ",".join(str(v) for v in query_vec) + "]"
 
-        where_clause = ""
+        where_clause = "WHERE 1=1"
+        params: dict = {"vec": vec_literal, "top_k": top_k}
+
         if entity_type:
-            where_clause = f"AND entity_type = '{entity_type}'"
+            where_clause += " AND entity_type = :entity_type"
+            params["entity_type"] = entity_type
 
         sql = text(f"""
             SELECT entity_type, entity_id, chunk_index, chunk_text, metadata_json,
-                   1 - (embedding::vector <=> :vec::vector) AS similarity
+                   1 - (embedding <=> :vec::halfvec({EMBEDDING_DIM})) AS similarity
             FROM embeddings
-            WHERE 1=1 {where_clause}
-            ORDER BY embedding::vector <=> :vec::vector
+            {where_clause}
+            ORDER BY embedding <=> :vec::halfvec({EMBEDDING_DIM})
             LIMIT :top_k
         """)
 
-        rows = session.execute(sql, {"vec": vec_literal, "top_k": top_k}).fetchall()
+        rows = session.execute(sql, params).fetchall()
         results = []
         for row in rows:
             sim = float(row[5])
@@ -132,8 +130,8 @@ class Retriever:
         scored: list[tuple[float, Embedding]] = []
         for row in rows:
             vec = row.embedding
-            if isinstance(vec, list) and len(vec) == len(query_vec):
-                sim = _cosine_similarity(query_vec, vec)
+            if isinstance(vec, (list, tuple)) and len(vec) == len(query_vec):
+                sim = _cosine_similarity(list(vec), query_vec)
                 if sim >= threshold:
                     scored.append((sim, row))
 

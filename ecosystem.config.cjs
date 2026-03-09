@@ -31,7 +31,7 @@ module.exports = {
       name: "q3-quant-worker",
       cwd: "./services/quant-engine",
       script: ".venv/bin/celery",
-      args: "-A q3_quant_engine.celery_app worker -Q strategy --loglevel=info",
+      args: "-A q3_quant_engine.celery_app worker -Q strategy,backtest --loglevel=info",
       env: {
         PYTHONUNBUFFERED: "1"
       }

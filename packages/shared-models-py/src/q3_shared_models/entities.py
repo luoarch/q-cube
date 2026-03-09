@@ -6,6 +6,8 @@ from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numer
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from pgvector.sqlalchemy import HALFVEC as HalfVec
+
 from q3_shared_models.base import Base
 
 
@@ -597,7 +599,7 @@ class Embedding(Base):
     entity_id: Mapped[str] = mapped_column(String, nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list] = mapped_column(JSONB, nullable=False)  # VECTOR(1536) once pgvector extension is enabled
+    embedding = mapped_column(HalfVec(1536), nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSONB)
     model_used: Mapped[str] = mapped_column(String, nullable=False, server_default="text-embedding-3-small")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -5,6 +5,7 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().default('postgresql://127.0.0.1:5432/q3'),
   REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
   STRATEGY_QUEUE_KEY: z.string().default('q3:strategy:jobs'),
+  BACKTEST_QUEUE_KEY: z.string().default('q3:backtest:jobs'),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRY: z.string().default('30m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),

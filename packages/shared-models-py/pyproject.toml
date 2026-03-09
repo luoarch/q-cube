@@ -9,7 +9,8 @@ description = "Q³ shared SQLAlchemy models (SSOT for all Python services)"
 requires-python = ">=3.13"
 dependencies = [
   "sqlalchemy>=2.0.48",
-  "psycopg[binary]>=3.3.3"
+  "psycopg[binary]>=3.3.3",
+  "pgvector>=0.4.0",
 ]
 
 [tool.setuptools]
