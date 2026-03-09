@@ -1,0 +1,152 @@
+.backLink {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.container {
+  max-width: 560px;
+  padding: 1.5rem;
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-gold, #fbbf24);
+  margin-bottom: 8px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.select,
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 14px;
+  font-family: inherit;
+  min-height: 44px;
+}
+
+.select:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--accent-gold, #fbbf24);
+  outline-offset: -2px;
+}
+
+.agentGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agentChip {
+  cursor: pointer;
+}
+
+.chipLabel {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: var(--text-secondary);
+  background: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.chipLabel:hover {
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.chipActive {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.5);
+  color: var(--accent-gold, #fbbf24);
+}
+
+.actions {
+  padding-top: 0.5rem;
+}
+
+.saveButton {
+  padding: 0.5rem 1.5rem;
+  background: var(--accent-gold, #fbbf24);
+  color: #0a0e1a;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 44px;
+  transition: opacity 0.15s ease;
+}
+
+.saveButton:hover {
+  opacity: 0.9;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.saveButton:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.error {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.skeleton {
+  height: 64px;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.08);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+/* Accessibility */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chipLabel,
+  .saveButton {
+    transition: none;
+  }
+
+  .skeleton {
+    animation: none;
+    opacity: 0.3;
+  }
+}
