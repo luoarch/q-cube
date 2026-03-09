@@ -139,6 +139,98 @@ def _build_packet_from_db(ticker: str) -> dict | None:
         }
 
 
+def _dict_to_packet(data: dict) -> "AssetAnalysisPacket":
+    """Convert a raw dict from _build_packet_from_db to an AssetAnalysisPacket."""
+    from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
+
+    return AssetAnalysisPacket(
+        issuer_id=data["issuer_id"],
+        ticker=data["ticker"],
+        sector=data["sector"],
+        subsector=data["subsector"],
+        classification=data["classification"],
+        fundamentals=data["fundamentals"],
+        trends={
+            k: [PeriodValue(reference_date=pv["reference_date"], value=pv["value"]) for pv in v]
+            for k, v in data["trends"].items()
+        },
+        refiner_scores=data["refiner_scores"],
+        flags=data["flags"],
+        market_cap=data["market_cap"],
+        avg_daily_volume=data["avg_daily_volume"],
+        score_reliability=data["score_reliability"],
+    )
+
+
+def _enrich_with_rag(packet: "AssetAnalysisPacket") -> None:
+    """Populate packet.rag_context from the RAG embeddings store."""
+    try:
+        from q3_ai_assistant.rag.response_builder import enrich_packet_with_rag
+
+        with SessionLocal() as session:
+            context = enrich_packet_with_rag(session, packet.ticker)
+            if context:
+                packet.rag_context = context
+                logger.info("RAG enriched packet for %s with %d chunks", packet.ticker, len(context))
+    except Exception:
+        logger.debug("RAG enrichment skipped for %s", packet.ticker, exc_info=True)
+
+
+def _persist_council_audit(result: "CouncilResult", tenant_id: str) -> None:  # type: ignore[name-defined]
+    """Persist council session, opinions, and audit trail to the database."""
+    try:
+        import uuid as _uuid
+        from dataclasses import asdict
+
+        from q3_shared_models.entities import CouncilOpinion, CouncilSession, CouncilSynthesis
+
+        with SessionLocal() as session:
+            cs = CouncilSession(
+                id=_uuid.UUID(result.session_id),
+                chat_session_id=None,
+                tenant_id=_uuid.UUID(tenant_id),
+                mode=result.mode.value if hasattr(result.mode, "value") else str(result.mode),
+                asset_ids=result.asset_ids,
+                agent_ids=[o.agent_id for o in result.opinions],
+                status="completed",
+                input_hash=result.audit_trail.input_hash,
+                audit_trail_json=asdict(result.audit_trail),
+            )
+            session.add(cs)
+
+            for o in result.opinions:
+                session.add(CouncilOpinion(
+                    id=_uuid.uuid4(),
+                    council_session_id=cs.id,
+                    agent_id=o.agent_id,
+                    verdict=o.verdict.value if hasattr(o.verdict, "value") else str(o.verdict),
+                    confidence=o.confidence,
+                    opinion_json=asdict(o),
+                    hard_rejects_json={"triggered": o.hard_rejects_triggered} if o.hard_rejects_triggered else None,
+                    profile_version=o.profile_version,
+                    prompt_version=o.prompt_version,
+                    provider_used=o.provider_used,
+                    model_used=o.model_used,
+                    fallback_level=o.fallback_level,
+                    tokens_used=o.tokens_used,
+                    cost_usd=o.cost_usd,
+                ))
+
+            # Persist synthesis
+            session.add(CouncilSynthesis(
+                id=_uuid.uuid4(),
+                council_session_id=cs.id,
+                scoreboard_json=asdict(result.scoreboard),
+                conflicts_json=[asdict(c) for c in result.conflict_matrix],
+                synthesis_text=result.moderator_synthesis.overall_assessment,
+            ))
+
+            session.commit()
+            logger.info("Persisted council audit for session %s", result.session_id)
+    except Exception:
+        logger.warning("Failed to persist council audit trail", exc_info=True)
+
+
 def _create_cascade(pool_type: str = "specialist") -> object:
     """Create a CascadeRouter from settings."""
     from q3_ai_assistant.llm.cascade import CascadeRouter, ProviderEntry
@@ -175,7 +267,7 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
         raise HTTPException(status_code=429, detail=reason)
 
     from q3_ai_assistant.council.orchestrator import CouncilOrchestrator
-    from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
+    from q3_ai_assistant.council.packet import AssetAnalysisPacket
 
     # Build packet from DB
     packet_data = _build_packet_from_db(req.ticker)
@@ -183,23 +275,10 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
         raise HTTPException(status_code=404, detail=f"Ticker {req.ticker} not found")
 
     # Convert to AssetAnalysisPacket
-    packet = AssetAnalysisPacket(
-        issuer_id=packet_data["issuer_id"],
-        ticker=packet_data["ticker"],
-        sector=packet_data["sector"],
-        subsector=packet_data["subsector"],
-        classification=packet_data["classification"],
-        fundamentals=packet_data["fundamentals"],
-        trends={
-            k: [PeriodValue(reference_date=pv["reference_date"], value=pv["value"]) for pv in v]
-            for k, v in packet_data["trends"].items()
-        },
-        refiner_scores=packet_data["refiner_scores"],
-        flags=packet_data["flags"],
-        market_cap=packet_data["market_cap"],
-        avg_daily_volume=packet_data["avg_daily_volume"],
-        score_reliability=packet_data["score_reliability"],
-    )
+    packet = _dict_to_packet(packet_data)
+
+    # Enrich with RAG context
+    _enrich_with_rag(packet)
 
     # Create cascades
     specialist_cascade = _create_cascade("specialist")
@@ -230,29 +309,18 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
                     raise HTTPException(
                         status_code=404, detail=f"Ticker {t} not found",
                     )
-                comp_packets.append(AssetAnalysisPacket(
-                    issuer_id=pd["issuer_id"],
-                    ticker=pd["ticker"],
-                    sector=pd["sector"],
-                    subsector=pd["subsector"],
-                    classification=pd["classification"],
-                    fundamentals=pd["fundamentals"],
-                    trends={
-                        k: [PeriodValue(reference_date=pv["reference_date"], value=pv["value"]) for pv in v]
-                        for k, v in pd["trends"].items()
-                    },
-                    refiner_scores=pd["refiner_scores"],
-                    flags=pd["flags"],
-                    market_cap=pd["market_cap"],
-                    avg_daily_volume=pd["avg_daily_volume"],
-                    score_reliability=pd["score_reliability"],
-                ))
+                p = _dict_to_packet(pd)
+                _enrich_with_rag(p)
+                comp_packets.append(p)
             result = orchestrator.run_comparison(comp_tickers, comp_packets)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown mode: {req.mode}")
     except Exception as exc:
         logger.exception("Council analysis failed for %s", req.ticker)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    # Persist audit trail
+    _persist_council_audit(result, req.tenant_id)
 
     # Serialize result
     from dataclasses import asdict

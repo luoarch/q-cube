@@ -562,6 +562,7 @@ export const chatMessages = pgTable('chat_messages', {
   providerUsed: varchar('provider_used', { length: 20 }),
   modelUsed: varchar('model_used', { length: 50 }),
   fallbackLevel: integer('fallback_level'),
+  inputHash: varchar('input_hash', { length: 64 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -576,6 +577,8 @@ export const councilSessions = pgTable('council_sessions', {
   assetIds: jsonb('asset_ids').notNull(),
   agentIds: jsonb('agent_ids').notNull(),
   status: varchar('status', { length: 20 }).notNull().default('pending'),
+  inputHash: varchar('input_hash', { length: 64 }),
+  auditTrailJson: jsonb('audit_trail_json'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

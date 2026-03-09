@@ -486,6 +486,7 @@ class ChatMessage(Base):
     provider_used: Mapped[str | None] = mapped_column(String)
     model_used: Mapped[str | None] = mapped_column(String)
     fallback_level: Mapped[int | None] = mapped_column(Integer)
+    input_hash: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -506,6 +507,8 @@ class CouncilSession(Base):
     asset_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
     agent_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="pending")
+    input_hash: Mapped[str | None] = mapped_column(String)
+    audit_trail_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
