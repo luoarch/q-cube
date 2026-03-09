@@ -11,6 +11,7 @@ import {
 import { createChatSessionSchema, sendMessageSchema } from '@q3/shared-contracts';
 
 import { ChatService } from './chat.service.js';
+import { CouncilService } from './council.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 
@@ -26,7 +27,10 @@ const COUNCIL_MODES = new Set<ChatMode>(['agent_solo', 'roundtable', 'debate', '
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly councilService: CouncilService,
+  ) {}
 
   @Post('sessions')
   async createSession(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
@@ -67,6 +71,22 @@ export class ChatController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.chatService.getMessages(sessionId, user.tenantId);
+  }
+
+  @Get('sessions/:id/council')
+  async getCouncil(
+    @Param('id', new ParseUUIDPipe()) sessionId: string,
+  ) {
+    const sessions = await this.councilService.getByChat(sessionId);
+    if (!sessions.length) return { sessions: [] };
+
+    const details = await Promise.all(
+      sessions.map(async (s) => ({
+        ...s,
+        ...(await this.councilService.getDetails(s.id)),
+      })),
+    );
+    return { sessions: details };
   }
 
   private async proxyToFreeChat(
@@ -202,6 +222,21 @@ export class ChatController {
         'system',
         JSON.stringify(councilResult),
       );
+
+      // Persist to dedicated council tables
+      const opinionAgentIds = opinions.map(
+        (op) => ((op.agent_id ?? op.agentId) as string) ?? 'unknown',
+      );
+      await this.councilService.persistCouncilResult(
+        sessionId,
+        tenantId,
+        councilMode,
+        tickers,
+        opinionAgentIds,
+        councilResult,
+      ).catch((err) => {
+        this.logger.error(`Council persistence failed (non-blocking): ${err}`);
+      });
 
       // Persist moderator synthesis as assistant message
       const synthesis = (councilResult.moderator_synthesis ?? councilResult.moderatorSynthesis) as

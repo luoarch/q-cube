@@ -119,6 +119,14 @@ def evaluate_opinion(opinion: dict, packet_metrics: set[str] | None = None) -> Q
     else:
         contradiction_free = 1.0
 
+    # 4b. Hard reject consistency — if hardRejectsTriggered is non-empty, verdict must be avoid
+    hard_rejects = opinion.get("hardRejectsTriggered", [])
+    if hard_rejects and verdict != "avoid":
+        contradiction_free *= 0.0
+        issues.append(
+            f"Hard rejects triggered ({hard_rejects}) but verdict is '{verdict}' (should be 'avoid')"
+        )
+
     # 5. Regulatory compliance — no banned phrases
     full_text = " ".join(str(v) for v in opinion.values() if isinstance(v, str))
     full_text_lower = full_text.lower()
