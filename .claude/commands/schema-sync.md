@@ -10,7 +10,7 @@ The user will describe a table (name, columns, types, constraints, relations). I
 
 1. **Read current state** of all three files in parallel:
    - `apps/api/src/db/schema.ts` (Drizzle ORM)
-   - `services/quant-engine/src/q3_quant_engine/models/entities.py` (SQLAlchemy 2.x)
+   - `packages/shared-models-py/src/q3_shared_models/entities.py` (SQLAlchemy 2.x)
    - Latest migration in `services/quant-engine/alembic/versions/`
 
 2. **Generate/update the Drizzle definition** in `schema.ts`:

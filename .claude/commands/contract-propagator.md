@@ -26,7 +26,7 @@ The user will describe a contract change (new field, renamed field, new schema, 
    - `packages/shared-events/` — update event schemas if they reference changed types
 
 4. **Update Python consumers**:
-   - `services/quant-engine/src/q3_quant_engine/models/entities.py` — sync enum values if StrategyType/RunStatus/JobKind changed
+   - `packages/shared-models-py/src/q3_shared_models/entities.py` — sync enum values if StrategyType/RunStatus/JobKind changed
    - `services/quant-engine/src/q3_quant_engine/tasks/strategy.py` — update task signatures/logic if event schema changed
    - If Pydantic models exist, update them to match the new Zod schema
 

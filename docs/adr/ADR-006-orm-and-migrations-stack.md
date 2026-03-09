@@ -12,9 +12,9 @@ O projeto Q³ precisa de uma base transacional consistente entre serviços Node 
 ## Decision
 Adotar o padrão abaixo como obrigatório:
 
-- API Node/NestJS: Drizzle ORM
-- Serviços Python: SQLAlchemy 2.x (ORM/Core)
-- Migrações de schema: Alembic
+- API Node/NestJS: Drizzle ORM (`apps/api/src/db/schema.ts`)
+- Serviços Python: SQLAlchemy 2.x — SSOT em `packages/shared-models-py/src/q3_shared_models/entities.py`
+- Migrações de schema: Alembic (em `services/quant-engine/alembic/`)
 
 ## Consequences
 

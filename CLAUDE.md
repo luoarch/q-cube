@@ -23,7 +23,7 @@ pnpm --filter @q3/api typecheck
 pnpm db:migrate          # Alembic upgrade head
 pnpm db:seed             # Demo tenant + user
 
-# PM2 process manager (10 processes)
+# PM2 process manager (all 10 processes)
 pnpm pm2:start
 pnpm pm2:logs
 pnpm pm2:stop
@@ -91,6 +91,8 @@ All domain schemas live in `packages/shared-contracts` (Zod 4). Any payload chan
 - `domains/comparison.ts` — ComparisonMatrix, MetricComparison, WinnerSummary
 - `domains/intelligence.ts` — Company intelligence aggregation
 - `domains/jobs.ts` — RunStatus, JobKind, queued event schema
+- `domains/user-context.ts` — UserContextProfile, preferences schemas
+- `domains/versioning.ts` — AnalysisVersionSet for reproducibility
 - `shared-types` re-exports `RunStatus` from shared-contracts — no manual duplicates
 
 ### Dual ORM — same schema, two runtimes
@@ -153,6 +155,10 @@ Filing data (CVM) and market snapshots (Yahoo/yfinance) are kept separate:
 - **Cost limit**: `Q3_AI_COST_LIMIT_USD_DAILY=10.0`
 - **Council agents**: Greenblatt, Graham, Buffett, Barsi + Moderator Q³
 - **RAG**: pgvector embeddings auto-indexed after strategy runs and refiner results
+- **OTel**: real OpenTelemetry SDK with OTLP gRPC export (`OTEL_EXPORTER_OTLP_ENDPOINT`), spans on LLM cascade, agent analysis, council modes
+- **Per-tenant limits**: `rate_limit_rpm` and `ai_daily_cost_limit_usd` columns on tenants table, enforced by `TenantThrottlerGuard` and `CostBudget`
+- **PII redaction**: `contains_pii()` + `redact_pii()` for CPF, CNPJ, email, phone, card numbers
+- **Audit trail**: SHA-256 `input_hash`, per-opinion `latency_ms`, full cost tracking
 
 ## Stack Versions
 

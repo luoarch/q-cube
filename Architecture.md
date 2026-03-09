@@ -53,14 +53,17 @@ Dashboard completo com:
 - **Ranking** — visualizacao de resultados de estrategia com scores refiner
 - **Backtest** — configuracao, execucao e visualizacao de resultados (equity curve, metricas, trades)
 - **Compare** — comparacao side-by-side de 2-3 ativos com winner chips
-- **Chat** — interface conversacional com modos (free chat, solo agent, roundtable, debate, comparison)
+- **Chat** — interface conversacional com modos (free chat, solo agent, roundtable, debate, comparison), typing indicator, timestamps, loading skeletons, archive de sessoes
 - **Universe** — explorador de ativos do universo B3
 - **Portfolio** — gestao de carteira
+- **Profile** — configuracoes do usuario (estrategia preferida, watchlist, agentes favoritos, modo de chat padrao)
+- **Intelligence** — pagina de inteligencia por empresa
+- **Assets** — detalhe de ativo com metricas e trends
 - **3D Visualization** — React Three Fiber layer para exploracao de dados
 
 ### 3.2 `apps/api` — NestJS 11 (Drizzle ORM)
 
-17 modulos ativos:
+18 modulos ativos:
 
 | Modulo | Responsabilidade |
 |--------|-----------------|
@@ -80,6 +83,7 @@ Dashboard completo com:
 | `health` | Health checks |
 | `database` | Drizzle connection |
 | `redis` | Redis connection |
+| `user-context` | User profile preferences (watchlist, strategy, agents) |
 | `common` | Shared guards, filters |
 
 ### 3.3 `services/quant-engine` — FastAPI + Celery
@@ -136,7 +140,7 @@ Stack: FastAPI, Celery (queues: `ai-ranking`, `ai-backtest`), Celery Beat, SQLAl
 
 | Package | Tecnologia | Escopo |
 |---------|-----------|--------|
-| `shared-contracts` | Zod 4 | SSOT para API payloads (18 dominios) |
+| `shared-contracts` | Zod 4 | SSOT para API payloads (19 dominios) |
 | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, domain enums |
 | `shared-models-py` | SQLAlchemy 2.x | SSOT para todas as tabelas Python |
 | `shared-types` | TypeScript | Re-export de tipos de shared-contracts |
@@ -288,7 +292,7 @@ compute_market_metrics: EV + earnings_yield para issuers com snapshot fresco (< 
 ## 6. SSOT — 4 camadas
 
 ```text
-1. shared-contracts (Zod 4)     → 18 dominios: strategy, backtest, refiner, council, chat, comparison, intelligence, etc.
+1. shared-contracts (Zod 4)     → 19 dominios: strategy, backtest, refiner, council, chat, comparison, intelligence, etc.
 2. shared-fundamentals (TS)     → Canonical keys, metric codes, enums
 3. shared-models-py (SQLAlchemy) → Tabelas, SSOT para Python services
 4. apps/api/src/db/schema.ts    → Mirror Drizzle (manual)
@@ -353,6 +357,9 @@ Free chat query → retriever → semantic search (halfvec, cosine) → context 
 
 ## 10. Observabilidade
 
-**Estado atual:** logs estruturados via `logging` module (Python) e NestJS logger (TypeScript). AI calls tracked com tokens_used, cost_usd, provider_used, model_used, fallback_level.
-
-Divida tecnica reconhecida: tracing distribuido, metricas de aplicacao, dashboards operacionais.
+- **Logs estruturados**: `logging` module (Python) e NestJS logger (TypeScript)
+- **OpenTelemetry**: real OTel SDK no ai-assistant com OTLP gRPC export e console fallback. Spans em `llm.cascade`, `agent.analyze`, `council.*` modes. Env vars: `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`
+- **Audit trail**: cada council opinion e chat message rastreia `tokens_used`, `cost_usd`, `provider_used`, `model_used`, `fallback_level`, `latency_ms`, `input_hash` (SHA-256)
+- **Cost budget**: limites diarios por tenant (`ai_daily_cost_limit_usd`) + por sessao, enforced em `/council/analyze` e `/chat/free`
+- **Rate limiting**: per-tenant RPM via `TenantThrottlerGuard` (lê `rate_limit_rpm` do DB com cache de 1min)
+- **PII detection**: redacao automatica de CPF, CNPJ, email, telefone, cartao em mensagens de chat

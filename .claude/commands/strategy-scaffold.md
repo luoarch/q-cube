@@ -14,7 +14,7 @@ The user provides:
 1. **Update Zod enum** in `packages/shared-contracts/src/domains/strategy.ts`:
    - Add the new value to `strategyTypeSchema` z.enum array
 
-2. **Update SQLAlchemy enum** in `services/quant-engine/src/q3_quant_engine/models/entities.py`:
+2. **Update SQLAlchemy enum** in `packages/shared-models-py/src/q3_shared_models/entities.py`:
    - Add new member to `StrategyType(str, enum.Enum)`
 
 3. **Update Drizzle enum** in `apps/api/src/db/schema.ts`:

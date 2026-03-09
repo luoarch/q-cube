@@ -6,7 +6,7 @@ Scan all database queries in the codebase to verify tenant isolation. Every oper
 
 1. **Identify tenant-scoped tables** by reading:
    - `apps/api/src/db/schema.ts` — tables with a `tenantId` column
-   - `services/quant-engine/src/q3_quant_engine/models/entities.py` — models with `tenant_id`
+   - `packages/shared-models-py/src/q3_shared_models/entities.py` — models with `tenant_id`
    - System tables without `tenantId` (e.g., `tenants`, `users`) are excluded from the audit
 
 2. **Scan Drizzle queries** in `apps/api/src/`:
@@ -14,7 +14,7 @@ Scan all database queries in the codebase to verify tenant isolation. Every oper
    - For each query on a tenant-scoped table, verify that `.where()` includes an `eq(table.tenantId, ...)` condition
    - Flag any query that accesses a tenant-scoped table without tenant filtering
 
-3. **Scan SQLAlchemy queries** in `services/quant-engine/src/`:
+3. **Scan SQLAlchemy queries** in `services/*/src/`:
    - Search for `session.execute(select(...))`, `session.query(...)`, `session.get(...)`
    - For each query on a tenant-scoped model, verify the `.where()` includes `Model.tenant_id == ...`
    - Flag any query missing tenant scope

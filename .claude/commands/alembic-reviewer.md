@@ -13,7 +13,7 @@ The user points to a specific migration file, or asks to review the latest migra
 1. **Read the migration file** in `services/quant-engine/alembic/versions/`
 2. **Read both ORM schemas**:
    - `apps/api/src/db/schema.ts` (Drizzle — the "readable reference")
-   - `services/quant-engine/src/q3_quant_engine/models/entities.py` (SQLAlchemy — the "executable truth")
+   - `packages/shared-models-py/src/q3_shared_models/entities.py` (SQLAlchemy — the "executable truth")
 3. **Verify the migration matches**:
    - Every `op.create_table()` column matches both schemas
    - Column types are correct PostgreSQL types

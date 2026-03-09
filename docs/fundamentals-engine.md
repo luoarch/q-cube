@@ -30,7 +30,7 @@ graph TB
         S2["2. Parse<br/>DfpParser / ItrParser<br/>Version dedup"]
         S3["3. Normalize<br/>Canonical Mapper<br/>Sign & Scope"]
         S4["4. Issuer Resolve<br/>FCA → Cadastro → Manual"]
-        S5["5. Compute Metrics<br/>Strategy Pattern"]
+        S5["5. Compute Metrics<br/>14 indicators (Strategy Pattern)"]
         S6["6. Market Snapshots<br/>brapi.dev (opt-in)"]
         S1 --> S2 --> S3 --> S4 --> S5
         S6 -.->|ENABLE_BRAPI| S5
@@ -278,7 +278,7 @@ sequenceDiagram
     participant API as FastAPI :8300
     participant Redis
     participant Worker as Celery Worker
-    participant Brapi as brapi.dev
+    participant Brapi as Yahoo/brapi
     participant DB as PostgreSQL
 
     User->>API: POST /batches/snapshots/refresh
@@ -289,7 +289,7 @@ sequenceDiagram
 
     Note over Worker: Fetch snapshots
     loop Each primary security (is_primary=true)
-        Worker->>Brapi: GET /quote/{ticker}
+        Worker->>Brapi: fetch quote (Yahoo yfinance or brapi.dev)
         Brapi-->>Worker: {marketCap, price, volume}
         Worker->>DB: INSERT market_snapshots
     end
@@ -410,13 +410,17 @@ cash_from_financing      6.03     DFC_MD  Caixa Financiamento
 | `ebitda` | EBIT + D&A (proxy: EBIT quando D&A indisponivel) | 1 |
 | `net_debt` | short_term_debt + long_term_debt - cash_and_equivalents | 1 |
 | `roic` | EBIT / (NWC + fixed_assets) | 1 |
+| `roe` | net_income / equity | 1 |
 | `earnings_yield` | EBIT / enterprise_value | 1 |
 | `enterprise_value` | market_cap + net_debt | 1 |
 | `gross_margin` | gross_profit / revenue | 1 |
 | `ebit_margin` | EBIT / revenue | 1 |
 | `net_margin` | net_income / revenue | 1 |
+| `cash_conversion` | cash_from_operations / net_income | 1 |
+| `debt_to_ebitda` | net_debt / ebitda | 1 |
+| `interest_coverage` | ebit / abs(financial_result) | 1 |
 
-> **Dependencia de market snapshots:** `enterprise_value` e `earnings_yield` dependem de `market_cap` vindo de `market_snapshots` (brapi.dev). Sem snapshot fresco (< 7 dias), EV e EY ficam NULL. As demais metricas (ROIC, EBITDA, margins, net_debt) sao CVM-only.
+> **Dependencia de market snapshots:** `enterprise_value` e `earnings_yield` dependem de `market_cap` vindo de `market_snapshots` (Yahoo/yfinance por padrao, brapi.dev como fallback). Sem snapshot fresco (< 7 dias), EV e EY ficam NULL. As demais metricas (ROIC, ROE, EBITDA, margins, net_debt, cash_conversion, debt_to_ebitda, interest_coverage) sao CVM-only.
 
 Cada `computed_metric` armazena `formula_version`, `inputs_snapshot_json` (valores exatos usados), e `source_filing_ids_json` para rastreabilidade completa.
 
@@ -448,7 +452,7 @@ GET    /issuers/{cvm_code}/metrics      Metricas derivadas
 GET    /filings/{id}/statement-lines    Linhas de um filing
 GET    /rankings                        Ranking Magic Formula
 
-POST   /batches/snapshots/refresh       Fetch market snapshots (brapi.dev, requer ENABLE_BRAPI=true)
+POST   /batches/snapshots/refresh       Fetch market snapshots (Yahoo/yfinance por padrao, brapi.dev como fallback)
 
 GET    /health                          Health check
 ```
@@ -487,8 +491,11 @@ curl http://localhost:8300/issuers/009512/metrics?codes=roic,ebit_margin
 | Flag | Default | Descricao |
 |------|---------|-----------|
 | `ENABLE_CVM` | `true` | Habilita provider CVM |
-| `ENABLE_BRAPI` | `false` | Habilita market snapshots via brapi.dev (`POST /batches/snapshots/refresh`) |
+| `ENABLE_YAHOO` | `true` | Habilita market snapshots via Yahoo/yfinance (padrao) |
+| `ENABLE_BRAPI` | `false` | Habilita market snapshots via brapi.dev (fallback) |
 | `ENABLE_DADOS_MERCADO` | `false` | Habilita provider Dados de Mercado |
+| `MARKET_SNAPSHOT_SOURCE` | `yahoo` | Provider primario para snapshots (`yahoo` ou `brapi`) |
+| `SNAPSHOT_STALENESS_DAYS` | `7` | Snapshots mais velhos que N dias sao tratados como stale |
 | `USE_CANONICAL_FUNDAMENTALS` | `false` | quant-engine le da compat view ao inves de assets+financial_statements |
 
 ### Source Selection Policy

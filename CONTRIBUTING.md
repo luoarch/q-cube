@@ -72,7 +72,7 @@ O script usa `.env` automaticamente e resolve host/porta a partir de `DATABASE_U
 ```text
 /apps
   /web                    → Next.js frontend (ranking, backtest, compare, chat, 3D viz)
-  /api                    → NestJS backend (17 modules, Drizzle ORM)
+  /api                    → NestJS backend (18 modules, Drizzle ORM)
 /services
   /quant-engine           → Strategy execution, ranking, refiner, backtest, comparison (FastAPI + Celery)
   /fundamentals-engine    → CVM ingestion, normalization, metrics (FastAPI + Celery)
@@ -169,7 +169,7 @@ pnpm pm2:stop
 
 Qualquer alteracao de payload deve comecar por `packages/shared-contracts`.
 
-Dominios existentes: strategy, backtest, refiner, council, chat, comparison, intelligence, ai, asset, auth, dashboard, jobs, portfolio, ranking, universe, user-context, versioning.
+Dominios existentes (19): _shared, strategy, backtest, refiner, council, chat, comparison, intelligence, ai, asset, auth, dashboard, jobs, portfolio, ranking, source, universe, user-context, versioning.
 
 Checklist de mudanca de contrato:
 

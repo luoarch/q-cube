@@ -18,6 +18,9 @@ Q³ is a **quantitative equity research platform** for the Brazilian market (B3)
 - **AI Council** — multi-agent system with 4 investment-school-inspired specialists (Greenblatt, Graham, Buffett, Barsi) + Moderator, supporting solo analysis, roundtable, 4-round debate, and comparison modes
 - **Free chat** — conversational interface with internal tools, RAG retrieval, and LLM synthesis
 - **RAG** — pgvector embeddings for strategy runs, refiner results, and council opinions
+- **Observability** — OpenTelemetry distributed tracing (OTLP gRPC), structured logging, full audit trail (input_hash, latency_ms, cost per call)
+- **Per-tenant governance** — configurable rate limits (RPM) and daily AI cost budgets per tenant, PII redaction (CPF/CNPJ/email/phone/card), session archival
+- **User profiles** — preferred strategy, watchlist, favorite agents, default chat mode
 - **3D visualization** — React Three Fiber layer for data exploration
 
 ### Regulatory framing
@@ -81,6 +84,7 @@ PostgreSQL            LLM Cascade
 | **Backtest results** | Backtest engine | `backtest_runs` | Equity curve, metrics, trade log |
 | **Chat/Council** | AI assistant | `chat_sessions` + `chat_messages` + `council_*` | Conversations, agent opinions, debates |
 | **RAG embeddings** | Auto-indexer | `embeddings` (pgvector) | Semantic retrieval for AI |
+| **User profiles** | User settings | `user_context_profiles` | Watchlist, strategy, agent preferences |
 
 ### Async job flow
 
@@ -96,8 +100,8 @@ PostgreSQL            LLM Cascade
 
 ```text
 apps/
-  web/                    → Next.js frontend (ranking, backtest, compare, chat, 3D viz)
-  api/                    → NestJS backend (17 modules, Drizzle ORM)
+  web/                    → Next.js frontend (ranking, backtest, compare, chat, profile, 3D viz)
+  api/                    → NestJS backend (18 modules, Drizzle ORM)
 
 services/
   quant-engine/           → Strategy execution, ranking, refiner, backtest, comparison (FastAPI + Celery)
@@ -106,7 +110,7 @@ services/
   ai-assistant/           → AI Council, free chat, RAG, ranking explainer, backtest narrator (FastAPI + Celery)
 
 packages/
-  shared-contracts/       → Zod 4 schemas — SSOT for API payloads (18 domain files)
+  shared-contracts/       → Zod 4 schemas — SSOT for API payloads (19 domain files)
   shared-fundamentals/    → Canonical keys, metric codes, domain enums (TypeScript)
   shared-models-py/       → SQLAlchemy models — SSOT for all Python services
   shared-types/           → Re-exported types from shared-contracts
@@ -174,7 +178,7 @@ Feature flags: `ENABLE_CVM`, `ENABLE_YAHOO` (default ON), `ENABLE_BRAPI`, `ENABL
 
 | Layer | Package | Technology | Scope |
 |-------|---------|------------|-------|
-| **API contracts** | `shared-contracts` | Zod 4 | 18 domain files (strategy, backtest, refiner, council, chat, comparison, intelligence, etc.) |
+| **API contracts** | `shared-contracts` | Zod 4 | 19 domain files (strategy, backtest, refiner, council, chat, comparison, intelligence, etc.) |
 | **Fundamentals domain** | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, enums |
 | **Persistence models** | `shared-models-py` | SQLAlchemy 2.x | All table definitions for Python services |
 | **Persistence schema** | `apps/api/src/db/schema.ts` | Drizzle | Mirror of SQLAlchemy models for NestJS API |
