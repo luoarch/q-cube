@@ -23,20 +23,20 @@ pnpm --filter @q3/api typecheck
 pnpm db:migrate          # Alembic upgrade head
 pnpm db:seed             # Demo tenant + user
 
-# PM2 process manager (all 5 services)
+# PM2 process manager (10 processes)
 pnpm pm2:start
 pnpm pm2:logs
 pnpm pm2:stop
 ```
 
-### Python services (quant-engine / market-ingestion / fundamentals-engine)
+### Python services (quant-engine / market-ingestion / fundamentals-engine / ai-assistant)
 
 ```bash
 cd services/quant-engine
 python -m venv .venv && source .venv/bin/activate && pip install -e .[dev]
 
 python -m q3_quant_engine                    # FastAPI on :8100
-celery -A q3_quant_engine.celery_app worker -Q strategy --loglevel=info
+celery -A q3_quant_engine.celery_app worker -Q strategy,backtest --loglevel=info
 
 python -m ruff check src                     # Lint
 python -m mypy src                           # Typecheck
@@ -55,16 +55,28 @@ python -m ruff check src tests               # Lint
 python -m pytest                             # Tests
 ```
 
+```bash
+cd services/ai-assistant
+python -m venv .venv && source .venv/bin/activate && pip install -e .[dev]
+
+python -m q3_ai_assistant                    # FastAPI on :8400
+celery -A q3_ai_assistant.celery_app worker -Q ai-ranking,ai-backtest --loglevel=info
+
+python -m ruff check src                     # Lint
+python -m pytest                             # Tests
+```
+
 ## Architecture
 
-**Polyglot monorepo** — TypeScript frontend/API + Python quant engine, connected via Redis job queue.
+**Polyglot monorepo** — TypeScript frontend/API + Python engines + AI assistant, connected via Redis job queue.
 
 ```
-Next.js (:3000) → NestJS API (:4000) → Redis Queue → Celery Worker → PostgreSQL
+Next.js (:3000) → NestJS API (:4000) → Redis Queue → Celery Workers → PostgreSQL
                                                     ↗
-                   FastAPI quant-engine (:8100) ────┘
+                   FastAPI quant-engine (:8100) ────┘ (+ queue poller)
                    FastAPI market-ingestion (:8200) ──→ PostgreSQL
                    FastAPI fundamentals-engine (:8300) ─→ PostgreSQL
+                   FastAPI ai-assistant (:8400) ──→ LLM cascade + pgvector
 ```
 
 ### Contract-first (SSOT)
@@ -72,7 +84,13 @@ Next.js (:3000) → NestJS API (:4000) → Redis Queue → Celery Worker → Pos
 All domain schemas live in `packages/shared-contracts` (Zod 4). Any payload change starts here.
 
 - `domains/strategy.ts` — StrategyType enum, create/response schemas
-- `domains/jobs.ts` — RunStatus, JobKind, queued event schema (imports strategyTypeSchema from strategy.ts)
+- `domains/backtest.ts` — BacktestConfig, metrics, equity curve schemas
+- `domains/refiner.ts` — Refinement scores, flags, adjusted rank
+- `domains/council.ts` — AgentVerdict, AgentOpinion, CouncilResult, debate schemas
+- `domains/chat.ts` — ChatSession, ChatMessage, SendMessage schemas
+- `domains/comparison.ts` — ComparisonMatrix, MetricComparison, WinnerSummary
+- `domains/intelligence.ts` — Company intelligence aggregation
+- `domains/jobs.ts` — RunStatus, JobKind, queued event schema
 - `shared-types` re-exports `RunStatus` from shared-contracts — no manual duplicates
 
 ### Dual ORM — same schema, two runtimes
@@ -86,10 +104,19 @@ Both define the same tables/enums. Migrations are managed by **Alembic only** (i
 
 ### Async job flow
 
-1. API creates `StrategyRun` + `Job` (status: pending) in a Drizzle transaction
-2. API pushes `strategyRunQueuedEvent` to Redis list `q3:strategy:jobs`
-3. Celery worker dequeues, updates status to running, executes, then marks completed/failed
-4. Task implementation: `services/quant-engine/src/q3_quant_engine/tasks/strategy.py`
+1. API creates run + job (status: pending) in a Drizzle transaction
+2. API pushes event to Redis list (`q3:strategy:jobs` or `q3:backtest:jobs`)
+3. Queue poller (`quant-engine/queue_poller.py`) bridges Redis lists → Celery via `send_task()`
+4. Celery worker executes, runs refiner (strategy) or backtest engine
+5. Task implementation: `services/quant-engine/src/q3_quant_engine/tasks/strategy.py`
+
+### AI Council flow
+
+1. Web sends message to `POST /chat/sessions/:id/messages` with mode + tickers
+2. NestJS `chat.service.ts` proxies to AI assistant (`POST /council/analyze` or `POST /chat/free`)
+3. AI assistant builds `AssetAnalysisPacket` from DB, routes to `CouncilOrchestrator`
+4. Agents analyze in parallel, moderator synthesizes
+5. Results returned to NestJS, persisted as chat messages + council records
 
 ### Multi-tenant
 
@@ -118,6 +145,15 @@ Filing data (CVM) and market snapshots (Yahoo/yfinance) are kept separate:
 - **`POST /batches/snapshots/refresh`**: triggers snapshot fetch using the configured provider
 - **Pipeline steps**: shared via `pipeline_steps.py` — both `facade.py` and `import_batch.py` task use the same step functions
 
+### AI configuration
+
+- **Env prefix**: `Q3_AI_` (e.g., `Q3_AI_OPENAI_API_KEY`, `Q3_AI_ANTHROPIC_API_KEY`)
+- **Config file**: `services/ai-assistant/src/q3_ai_assistant/config.py` (pydantic-settings, loads `../../.env`)
+- **LLM cascade**: OpenAI → Anthropic → Google with automatic fallback
+- **Cost limit**: `Q3_AI_COST_LIMIT_USD_DAILY=10.0`
+- **Council agents**: Greenblatt, Graham, Buffett, Barsi + Moderator Q³
+- **RAG**: pgvector embeddings auto-indexed after strategy runs and refiner results
+
 ## Stack Versions
 
-Node.js 24.x, Python 3.13+, PostgreSQL 18, Redis 8, PM2 6, NestJS 11, Zod 4, Celery 5.6, SQLAlchemy 2.x, Drizzle ORM
+Node.js 24.x, Python 3.13+, PostgreSQL 18 (pgvector), Redis 8, PM2 6, NestJS 11, Zod 4, Celery 5.6, SQLAlchemy 2.x, Drizzle ORM, React Three Fiber

@@ -2,96 +2,93 @@
 
 **Quantity · Quality · Quant Technology**
 
-Q³ is a **quantitative equity research platform** for the Brazilian market (B3). It automates stock selection using disciplined, reproducible quantitative methods — starting with the Magic Formula and its variations.
+Q³ is a **quantitative equity research platform** for the Brazilian market (B3). It automates stock selection using disciplined, reproducible quantitative methods, enriched by AI-powered analysis.
 
 ---
 
-## Vision vs current scope
+## What it does
 
-### Vision
-
-A full **Quant Strategy Lab** capable of:
-
-- analyzing the entire B3 universe
-- executing multiple quantitative strategies
-- generating ranked stock lists
-- running historical backtests
-- comparing strategies side-by-side
-- analyzing personal portfolios
-
-### MVP scope (current)
-
-- **CVM-first fundamentals pipeline** — filing data (DFP/ITR) parsed, normalized, and stored with derived metrics (ROIC, EBITDA, margins, net_debt)
+- **CVM-first fundamentals pipeline** — filing data (DFP/ITR/FCA) parsed, normalized, and stored with 12+ derived metrics (ROIC, EBITDA, margins, net_debt, debt/EBITDA, interest coverage, etc.)
 - **Market snapshots** — Yahoo/yfinance (default) or brapi.dev provide `market_cap` for Enterprise Value and Earnings Yield
-- **Magic Formula ranking** — requires both CVM fundamentals **and** market snapshots for the complete strategy
-- **Next.js scaffold** — auth UI + empty dashboard, no real product functionality yet
-- **Single-tenant** auth scaffold (multi-tenant schema ready, not enforced yet)
+- **Magic Formula ranking** — 3 strategy variants (Original, Brasil, Hybrid) with full-universe ranking
+- **Top 30 Refiner** — deterministic quality/safety/consistency scoring on top-N ranked assets using 3-period trends
+- **Backtesting engine** — historical backtests with PIT (point-in-time) data, cost modeling, benchmark comparison (CAGR, Sharpe, Sortino, max drawdown, hit rate, turnover)
+- **Compare Assets** — deterministic comparison (2–3 assets) across 11 metrics with tolerance bands and winner determination
+- **Company Intelligence** — per-company page aggregating base factors, refiner scores, trend data, flags, and AI explanations
+- **AI Council** — multi-agent system with 4 investment-school-inspired specialists (Greenblatt, Graham, Buffett, Barsi) + Moderator, supporting solo analysis, roundtable, 4-round debate, and comparison modes
+- **Free chat** — conversational interface with internal tools, RAG retrieval, and LLM synthesis
+- **RAG** — pgvector embeddings for strategy runs, refiner results, and council opinions
+- **3D visualization** — React Three Fiber layer for data exploration
 
-> **Important:** Magic Formula = fundamentals + market snapshots. Without market data (`ENABLE_YAHOO=true` or `ENABLE_BRAPI=true`), Enterprise Value and Earnings Yield cannot be calculated (`EV = market_cap + net_debt` requires market data). What exists without snapshots is the **CVM-first fundamentals pipeline** — ROIC, margins, EBITDA, net_debt — not the Magic Formula. The ranking falls back to EBIT margin + ROIC, which is a partial approximation.
+### Regulatory framing
 
-### Post-MVP roadmap
-
-- Magic Formula Brasil (sector/liquidity filters)
-- Magic Formula Hybrid (quality score, momentum, ROIC, Debt/EBITDA, margin stability)
-- Full backtesting engine (CAGR, Sharpe, max drawdown, volatility, hit rate)
-- Strategy comparison
-- Multi-user onboarding
-- B3 Investor API integration (requires CNPJ + licensing)
+Product positioned as analytical/educational tool, not personalized investment advice (CVM 20, CVM 178, ANBIMA). Agents use "-inspired" naming, disclaimers always present, no direct buy/sell orders.
 
 ---
 
 ## Architecture
 
-Polyglot monorepo — TypeScript frontend/API + Python engines, connected via Celery/Redis broker.
+Polyglot monorepo — TypeScript frontend/API + Python engines + AI assistant, connected via Redis/Celery.
 
 ```text
 Next.js (:3000)
-      ↓
+      |
 NestJS API (:4000)
-      ↓
-Celery / Redis broker
-      ↓
-┌─────────────────────────┐
-│  fundamentals-engine    │  CVM ingestion, normalization, derived metrics
-│  (:8300)                │
-├─────────────────────────┤
-│  quant-engine           │  Strategy execution, ranking, backtests
-│  (:8100)                │
-├─────────────────────────┤
-│  market-ingestion       │  Data client adapters (brapi, CVM, Dados de Mercado)
-│  (:8200)                │
-└─────────────────────────┘
-      ↓
-PostgreSQL
+      |
+      +--- Redis Queue ---+
+      |                   |
+      v                   v
+  Celery Workers      AI Assistant (:8400)
+  (strategy,          (council, chat,
+   backtest,           ranking explainer,
+   fundamentals)       backtest narrator)
+      |                   |
+      v                   v
+PostgreSQL            LLM Cascade
+(pgvector)            (OpenAI -> Anthropic -> Google)
+      ^
+      |
+  FastAPI Services
+  quant-engine (:8100)
+  fundamentals-engine (:8300)
+  market-ingestion (:8200)
 ```
+
+### 10 PM2 processes
+
+| Process | Runtime | Port | Role |
+|---------|---------|------|------|
+| q3-web | Next.js | 3000 | Frontend |
+| q3-api | NestJS | 4000 | API gateway |
+| q3-quant-engine | FastAPI | 8100 | Quant admin + queue poller |
+| q3-quant-worker | Celery | — | Strategy, backtest, refiner execution |
+| q3-market-ingestion | FastAPI | 8200 | Data client adapters |
+| q3-fundamentals-engine | FastAPI | 8300 | CVM pipeline + market snapshots |
+| q3-fundamentals-worker | Celery | — | CVM import, metrics computation |
+| q3-ai-assistant | FastAPI | 8400 | Council, chat, AI modules |
+| q3-ai-worker | Celery | — | Ranking explainer, backtest narrator |
+| q3-ai-beat | Celery Beat | — | Scheduled AI tasks |
 
 ### Data domains
 
 | Domain | Source | Storage | Purpose |
 |--------|--------|---------|---------|
 | **Raw filings** | CVM (DFP/ITR/FCA) | `raw_source_batches` + `raw_source_files` | Audit trail / data lake |
-| **Canonical fundamentals** | CVM → normalization pipeline | `issuers` + `filings` + `statement_lines` | Issuer-centric financial data |
-| **Computed metrics** | Derived from statement_lines | `computed_metrics` | ROIC, EBITDA, margins, net_debt |
-| **Market snapshots** | Yahoo/yfinance (primary), brapi.dev (fallback) | `market_snapshots` | Price, market_cap, volume per security |
-| **Market-derived metrics** | market_cap + filing data | `computed_metrics` (EV, earnings yield) | Requires both CVM + snapshot data |
-
-### Fundamentals pipeline
-
-```text
-raw ingestion → parsing → normalization → issuer/security mapping → restatement detection → derived metrics → serving
-```
-
-### Market enrichment
-
-```text
-snapshot fetch → staleness validation (7-day window) → market-derived metrics (EV, earnings yield) → compat view refresh
-```
+| **Canonical fundamentals** | CVM → normalization | `issuers` + `filings` + `statement_lines` | Issuer-centric financial data |
+| **Computed metrics** | Derived from statement_lines | `computed_metrics` | 12+ indicators (ROIC, EBITDA, margins, etc.) |
+| **Market snapshots** | Yahoo/yfinance, brapi.dev | `market_snapshots` | Price, market_cap, volume per security |
+| **Refinement results** | Top-N refiner | `refinement_results` | Quality/safety/consistency scores + flags |
+| **Backtest results** | Backtest engine | `backtest_runs` | Equity curve, metrics, trade log |
+| **Chat/Council** | AI assistant | `chat_sessions` + `chat_messages` + `council_*` | Conversations, agent opinions, debates |
+| **RAG embeddings** | Auto-indexer | `embeddings` (pgvector) | Semantic retrieval for AI |
 
 ### Async job flow
 
-1. API creates `StrategyRun` + `Job` (status: pending) in a Drizzle transaction
-2. API pushes `strategyRunQueuedEvent` to Redis list `q3:strategy:jobs`
-3. Celery worker dequeues, updates status to running, executes, then marks completed/failed
+1. API creates run + job (status: pending) in a Drizzle transaction
+2. API pushes event to Redis list (`q3:strategy:jobs` or `q3:backtest:jobs`)
+3. Queue poller bridges Redis lists → Celery task queues
+4. Celery worker executes, runs refiner (if strategy run), updates status
+5. API/Web poll for results
 
 ---
 
@@ -99,170 +96,111 @@ snapshot fetch → staleness validation (7-day window) → market-derived metric
 
 ```text
 apps/
-  web/                → Next.js frontend (scaffold — auth UI + empty dashboard)
-  api/                → NestJS backend (Drizzle ORM)
+  web/                    → Next.js frontend (ranking, backtest, compare, chat, 3D viz)
+  api/                    → NestJS backend (17 modules, Drizzle ORM)
 
 services/
-  fundamentals-engine/  → CVM ingestion, normalization, metrics (FastAPI + Celery)
-  quant-engine/         → Strategy execution, ranking (FastAPI + Celery, Alembic migrations)
-  market-ingestion/     → Data client adapters (brapi, CVM, Dados de Mercado)
+  quant-engine/           → Strategy execution, ranking, refiner, backtest, comparison (FastAPI + Celery)
+  fundamentals-engine/    → CVM ingestion, normalization, metrics (FastAPI + Celery)
+  market-ingestion/       → Data client adapters (brapi, CVM, Dados de Mercado)
+  ai-assistant/           → AI Council, free chat, RAG, ranking explainer, backtest narrator (FastAPI + Celery)
 
 packages/
-  shared-contracts/     → Zod schemas — SSOT for API payloads and domain types
-  shared-fundamentals/  → Canonical keys, metric codes, domain enums (TypeScript)
-  shared-models-py/     → SQLAlchemy models — SSOT for all Python services
-  shared-types/         → Re-exported types from shared-contracts
-  shared-events/        → Event schemas
+  shared-contracts/       → Zod 4 schemas — SSOT for API payloads (18 domain files)
+  shared-fundamentals/    → Canonical keys, metric codes, domain enums (TypeScript)
+  shared-models-py/       → SQLAlchemy models — SSOT for all Python services
+  shared-types/           → Re-exported types from shared-contracts
+  shared-events/          → Event schemas
 ```
-
----
-
-## Shared contracts and SSOT
-
-The system has two layers of SSOT:
-
-| Layer | Package | Technology | Scope |
-|-------|---------|------------|-------|
-| **API contracts** | `shared-contracts` | Zod 4 | Strategy types, job schemas, API payloads |
-| **Fundamentals domain** | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, enums |
-| **Persistence models** | `shared-models-py` | SQLAlchemy 2.x | All table definitions for Python services |
-| **Persistence schema** | `apps/api/src/db/schema.ts` | Drizzle | Manual mirror of SQLAlchemy models for the NestJS API (no auto-generation, no CI check) |
-
-**Important distinction:**
-
-- **Zod/contracts** = semantic truth (what the domain means)
-- **SQLAlchemy/Drizzle** = persistence mirrors (how it's stored)
-- Both ORMs define the same tables/enums. Migrations are managed by **Alembic only** (in `services/quant-engine/alembic/`).
 
 ---
 
 ## Quantitative strategies
 
-### 1 — Magic Formula (Original) — fundamentals + market snapshots
+### Magic Formula Original
 
-Based on Joel Greenblatt's book.
+Based on Joel Greenblatt's book. `Earnings Yield = EBIT / EV`, `Return on Capital = EBIT / (NWC + Fixed Assets)`.
 
-```text
-Earnings Yield = EBIT / Enterprise Value
-Return on Capital = EBIT / (Net Working Capital + Fixed Assets)
-Ranking = Rank(EY) + Rank(ROC)
-```
-
-> **Requires `market_cap` from market snapshots** (`ENABLE_YAHOO=true` or `ENABLE_BRAPI=true`). Without market data, EV cannot be calculated, EY remains NULL, and the strategy falls back to EBIT margin + ROIC (partial approximation). The CVM-first fundamentals pipeline provides the accounting base (ROIC, margins, net_debt, EBITDA), but the complete Magic Formula needs both CVM + market snapshot data.
-
-### 2 — Magic Formula Brasil (post-MVP)
+### Magic Formula Brasil
 
 Additional filters: exclude financials/utilities, minimum liquidity, minimum market cap, positive EBIT.
 
-### 3 — Magic Formula Hybrid (post-MVP)
+### Magic Formula Hybrid
 
-Additional factors: quality score, momentum, ROIC, Debt/EBITDA, margin stability. Objective: reduce value traps.
+Additional factors: quality score, momentum, ROIC, Debt/EBITDA, margin stability. Designed to reduce value traps.
+
+> All three variants require `market_cap` from market snapshots for complete EV/EY calculation. Without market data, the ranking falls back to EBIT margin + ROIC.
+
+---
+
+## AI Council
+
+Multi-agent investment analysis system with 4 specialist agents + moderator:
+
+| Agent | Focus | Core Metrics |
+|-------|-------|-------------|
+| Greenblatt-inspired | Earnings yield, return on capital | EY, ROIC, EBIT margin |
+| Graham-inspired | Margin of safety, price vs value | P/L, P/VPA, net debt |
+| Buffett-inspired | Quality, moat, capital allocation | ROE, margins consistency, FCF |
+| Barsi-inspired | Dividends, income, longevity | DY, payout, FCF, recurring profit |
+| Moderator Q³ | Synthesize, compare views | All (meta-analysis) |
+
+### Modes
+
+- **Solo** — single specialist analyzes one asset
+- **Roundtable** — all 4 specialists + moderator synthesis
+- **Debate** — selected agents in 4-round protocol (initial → contestation → reply → synthesis)
+- **Comparison** — deterministic compare + per-asset agent roundtables
+
+### Free chat
+
+Conversational mode with internal tools (get_ranked_assets, get_refinement_results, get_company_financials, compare_companies, etc.), RAG retrieval, and LLM synthesis.
 
 ---
 
 ## Data sources
 
-### Source-of-Truth Policy
-
 | Domain | Source | Notes |
 |--------|--------|-------|
 | Fundamentals (filings, statements) | CVM | Sole source of truth for accounting data |
-| Market snapshots (price, market_cap, volume) | Yahoo/yfinance | Free, no token, default provider |
-| Market snapshots (fallback) | brapi.dev | Retained as alternative, requires token |
+| Market snapshots (price, market_cap) | Yahoo/yfinance | Free, no token, default provider |
+| Market snapshots (fallback) | brapi.dev | Requires `BRAPI_TOKEN` |
 
-### Source priority
-
-```text
-CVM raw (audit trail) → Dados de Mercado (primary fundamentals) → Yahoo/yfinance (market quotes)
-```
-
-Feature flags control which sources are active: `ENABLE_CVM`, `ENABLE_YAHOO`, `ENABLE_BRAPI`, `ENABLE_DADOS_MERCADO`.
-
-`MARKET_SNAPSHOT_SOURCE` selects the active market data provider (default: `yahoo`).
-
-### CVM — source of truth
-
-All fundamental data originates from CVM (Comissao de Valores Mobiliarios) public filings.
-
-- **DFP** (annual) and **ITR** (quarterly) filings provide financial statements
-- **FCA** provides issuer metadata and ticker mapping
-- **Cadastro** provides sector classification
-- **Restatements** are detected and handled — superseded filings are marked, affected metrics invalidated
-
-### Yahoo/yfinance — market snapshots (default)
-
-- Activated via `ENABLE_YAHOO=true` (default ON)
-- Provides `market_cap`, price, volume per security
-- Free, no API token required
-- Ticker mapping: B3 tickers get `.SA` suffix inside the adapter
-- **Staleness policy**: snapshots older than `SNAPSHOT_STALENESS_DAYS` (default 7) are treated as stale
-- Endpoint: `POST /batches/snapshots/refresh`
-
-### brapi.dev — market snapshots (fallback)
-
-- Activated via `ENABLE_BRAPI=true` + `MARKET_SNAPSHOT_SOURCE=brapi`
-- Free tier: 15k requests/month
-- Requires `BRAPI_TOKEN` in `.env`
+Feature flags: `ENABLE_CVM`, `ENABLE_YAHOO` (default ON), `ENABLE_BRAPI`, `ENABLE_DADOS_MERCADO`.
 
 ---
 
-## Multi-tenant
+## Shared contracts and SSOT
 
-Schema supports multi-tenant isolation (UUID PKs, cascade deletes from `tenants`, `tenantId` scoping). Currently single-tenant in practice.
+| Layer | Package | Technology | Scope |
+|-------|---------|------------|-------|
+| **API contracts** | `shared-contracts` | Zod 4 | 18 domain files (strategy, backtest, refiner, council, chat, comparison, intelligence, etc.) |
+| **Fundamentals domain** | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, enums |
+| **Persistence models** | `shared-models-py` | SQLAlchemy 2.x | All table definitions for Python services |
+| **Persistence schema** | `apps/api/src/db/schema.ts` | Drizzle | Mirror of SQLAlchemy models for NestJS API |
 
-Roles: `owner`, `admin`, `member`, `viewer`.
-
----
-
-## Persistence
-
-| Runtime | ORM | Migrations |
-|---------|-----|------------|
-| NestJS API | Drizzle | — |
-| Python services | SQLAlchemy 2.x | Alembic (in quant-engine) |
-
-Rules:
-
-- Avoid raw SQL in application/business logic
-- Migrations may contain raw SQL when needed (DDL, views, indexes)
-- Materialized views and compat views are acceptable infrastructure
-- `ensure_psycopg_url()` converts `postgresql://` → `postgresql+psycopg://` for Python services
-
----
-
-## Glossary
-
-| Term | Definition |
-|------|-----------|
-| **Issuer** | A company registered with CVM (identified by `cvm_code` and `cnpj`) |
-| **Security** | A tradable instrument (ticker) belonging to an issuer (e.g., PETR3, PETR4) |
-| **Filing** | A CVM document submission (DFP, ITR, FCA) for a reference date |
-| **Statement line** | A single accounting line item from a filing, with canonical key mapping |
-| **Computed metric** | A derived indicator (ROIC, EBITDA, EV, etc.) calculated from statement lines |
-| **Market snapshot** | A point-in-time quote (price, market_cap, volume) for a security |
-| **Strategy run** | An execution of a quantitative strategy producing a ranked stock list |
+Migrations managed by **Alembic only** (in `services/quant-engine/alembic/`).
 
 ---
 
 ## Stack versions
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| Node.js | 24.x LTS | Runtime for Next.js and NestJS |
-| Python | 3.13+ | Runtime for all Python services |
-| Next.js | 16.x | Frontend framework |
-| React | 19.x | UI library |
-| NestJS | 11.x | Application backend |
-| PostgreSQL | 18.x | Primary database |
-| Redis | 8.x | Celery broker + cache |
-| Celery | 5.6.x | Distributed task queue |
-| SQLAlchemy | 2.x | Python ORM |
-| Drizzle | latest | TypeScript ORM |
-| Zod | 4.x | Schema validation |
-| PM2 | 6.x | Process manager |
-| FastAPI | latest | Python API framework ([docs](https://fastapi.tiangolo.com/)) |
-
-> Versions pinned at bootstrap; no automated version checks in CI.
+| Component | Version |
+|-----------|---------|
+| Node.js | 24.x |
+| Python | 3.13+ |
+| Next.js | 16.x |
+| React | 19.x |
+| NestJS | 11.x |
+| PostgreSQL | 18.x (+ pgvector) |
+| Redis | 8.x |
+| Celery | 5.6.x |
+| SQLAlchemy | 2.x |
+| Drizzle | latest |
+| Zod | 4.x |
+| PM2 | 6.x |
+| FastAPI | latest |
+| React Three Fiber | latest |
 
 ---
 
