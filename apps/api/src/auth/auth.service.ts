@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { type ConfigService } from '@nestjs/config';
+import { type JwtService } from '@nestjs/jwt';
 import {
   loginResponseSchema,
   refreshResponseSchema,

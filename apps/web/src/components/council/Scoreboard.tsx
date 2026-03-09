@@ -1,11 +1,11 @@
 'use client';
 
-import type { AgentVerdict, CouncilScoreboard } from '@q3/shared-contracts';
 
 import { AGENT_LABELS, VERDICT_COLORS, VERDICT_LABELS } from './constants';
+import styles from './council.module.css';
 import { VerdictChip } from './VerdictChip';
 
-import styles from './council.module.css';
+import type { AgentVerdict, CouncilScoreboard } from '@q3/shared-contracts';
 
 export function Scoreboard({ scoreboard }: { scoreboard: CouncilScoreboard | undefined }) {
   if (!scoreboard?.entries?.length) return null;

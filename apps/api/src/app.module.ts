@@ -3,20 +3,20 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 
-import { TenantThrottlerGuard } from './auth/tenant-throttler.guard.js';
 
 import { AIModule } from './ai/ai.module.js';
 import { AssetModule } from './asset/asset.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { TenantThrottlerGuard } from './auth/tenant-throttler.guard.js';
 import { BacktestModule } from './backtest/backtest.module.js';
 import { ChatModule } from './chat/chat.module.js';
-import { ComparisonModule } from './comparison/comparison.module.js';
-import { AuthModule } from './auth/auth.module.js';
 import { CommonModule } from './common/common.module.js';
+import { ComparisonModule } from './comparison/comparison.module.js';
 import { validateEnv } from './config/env.schema.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
-import { IntelligenceModule } from './intelligence/intelligence.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { IntelligenceModule } from './intelligence/intelligence.module.js';
 import { PortfolioModule } from './portfolio/portfolio.module.js';
 import { RankingModule } from './ranking/ranking.module.js';
 import { RedisModule } from './redis/redis.module.js';

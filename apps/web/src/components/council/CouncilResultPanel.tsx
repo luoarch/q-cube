@@ -1,5 +1,12 @@
 'use client';
 
+
+import { AgentCard } from './AgentCard';
+import { ConflictMatrix } from './ConflictMatrix';
+import styles from './council.module.css';
+import { DebateTimeline } from './DebateTimeline';
+import { Scoreboard } from './Scoreboard';
+
 import type {
   AgentOpinion,
   ConflictEntry,
@@ -7,13 +14,6 @@ import type {
   DebateRound,
   ModeratorSynthesis,
 } from '@q3/shared-contracts';
-
-import { AgentCard } from './AgentCard';
-import { ConflictMatrix } from './ConflictMatrix';
-import { DebateTimeline } from './DebateTimeline';
-import { Scoreboard } from './Scoreboard';
-
-import styles from './council.module.css';
 
 export type CouncilData = {
   opinions?: AgentOpinion[];

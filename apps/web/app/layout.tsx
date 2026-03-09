@@ -1,9 +1,9 @@
-import type { Metadata } from 'next';
-
 import './globals.css';
+import { DevAutoLogin } from '../src/components/providers/DevAutoLogin';
 import { QueryProvider } from '../src/components/providers/QueryProvider';
 import { ThemeProvider } from '../src/components/providers/ThemeProvider';
-import { DevAutoLogin } from '../src/components/providers/DevAutoLogin';
+
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Q³ — Q-Cube',

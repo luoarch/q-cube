@@ -7,8 +7,6 @@ import {
   Color,
   type InstancedMesh as InstancedMeshType,
   SphereGeometry,
-  MeshStandardMaterial,
-  InstancedBufferAttribute,
 } from 'three';
 
 import { PARTICLE_SEGMENTS_HI } from '../../../lib/three/constants';

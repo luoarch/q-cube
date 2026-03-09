@@ -1,10 +1,9 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import {
   HealthCheck,
-  HealthCheckService,
-  HealthIndicator,
+  type HealthCheckService,
+  HealthIndicator, type HealthIndicatorResult 
 } from '@nestjs/terminus';
-import type { HealthIndicatorResult } from '@nestjs/terminus';
 import { SkipThrottle } from '@nestjs/throttler';
 import { sql } from 'drizzle-orm';
 

@@ -7,7 +7,7 @@ import {
   type AISuggestionsQuery,
   type UpdateReviewStatus,
 } from '@q3/shared-contracts';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 
 import { DB } from '../database/database.constants.js';
 import { aiExplanations, aiResearchNotes, aiSuggestions } from '../db/schema.js';

@@ -4,12 +4,12 @@ import {
   dashboardSummarySchema,
   type DashboardSummary,
 } from '@q3/shared-contracts';
-import { eq, sql, desc, and } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 
-import { CacheService } from '../common/cache.service.js';
+import { type CacheService } from '../common/cache.service.js';
 import { DB } from '../database/database.constants.js';
 import { assets, financialStatements, strategyRuns } from '../db/schema.js';
-import { RankingService } from '../ranking/ranking.service.js';
+import { type RankingService } from '../ranking/ranking.service.js';
 
 import type * as schema from '../db/schema.js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';

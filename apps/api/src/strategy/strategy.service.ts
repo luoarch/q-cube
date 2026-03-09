@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { type ConfigService } from '@nestjs/config';
 import {
   type CreateStrategyRunInput,
   createStrategyRunResponseSchema,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { uuidSchema } from './_shared.js';
-import { agentIdSchema, councilModeSchema } from './council.js';
+import { agentIdSchema } from './council.js';
 
 // --- Chat modes ---
 

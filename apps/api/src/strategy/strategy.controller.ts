@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { createStrategyRunSchema } from '@q3/shared-contracts';
 
-import { StrategyService } from './strategy.service.js';
+import { type StrategyService } from './strategy.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

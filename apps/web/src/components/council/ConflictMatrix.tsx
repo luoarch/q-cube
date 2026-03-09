@@ -1,10 +1,10 @@
 'use client';
 
-import type { ConflictEntry } from '@q3/shared-contracts';
 
 import { AGENT_LABELS } from './constants';
-
 import styles from './council.module.css';
+
+import type { ConflictEntry } from '@q3/shared-contracts';
 
 export function ConflictMatrix({ conflicts }: { conflicts: ConflictEntry[] }) {
   if (!conflicts?.length) return null;

@@ -9,6 +9,7 @@ import type { RankingItem } from '@q3/shared-contracts';
 
 export function HudTooltip({ items }: { items: RankingItem[] }) {
   const hoveredTicker = useSceneStore((s) => s.hoveredTicker);
+  const { positions } = useAssetPositions(items);
 
   if (!hoveredTicker) return null;
 
@@ -16,7 +17,6 @@ export function HudTooltip({ items }: { items: RankingItem[] }) {
   if (idx === -1) return null;
 
   const item = items[idx]!;
-  const { positions } = useAssetPositions(items);
   const x = positions[idx * 3]!;
   const y = positions[idx * 3 + 1]!;
   const z = positions[idx * 3 + 2]!;

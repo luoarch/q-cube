@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 
-import type { AgentOpinion } from '@q3/shared-contracts';
 
 import { AGENT_LABELS } from './constants';
+import styles from './council.module.css';
 import { VerdictChip } from './VerdictChip';
 
-import styles from './council.module.css';
+import type { AgentOpinion } from '@q3/shared-contracts';
 
 export function AgentCard({
   opinion,

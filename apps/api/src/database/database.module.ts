@@ -1,6 +1,6 @@
 import { Global, Inject, Logger, Module, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { DB, DB_POOL } from './database.constants.js';

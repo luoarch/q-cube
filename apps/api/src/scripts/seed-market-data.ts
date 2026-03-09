@@ -8,7 +8,7 @@
  * Usage: npx tsx src/scripts/seed-market-data.ts
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 

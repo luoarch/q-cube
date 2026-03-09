@@ -1,8 +1,8 @@
-import type { AgentOpinion, ChatMessage } from '@q3/shared-contracts';
 
 import { VERDICT_LABELS } from './constants';
 
 import type { CouncilData } from './CouncilResultPanel';
+import type { AgentOpinion, ChatMessage } from '@q3/shared-contracts';
 
 /**
  * Read a value from an object that may use snake_case or camelCase keys.

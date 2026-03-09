@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { type UserContextProfile, userContextProfileSchema } from '@q3/shared-contracts';
+import { type UserContextProfile, userContextProfileSchema, type UpdateUserContext  } from '@q3/shared-contracts';
 import { and, eq } from 'drizzle-orm';
 
 import { DB } from '../database/database.constants.js';
 import { userContextProfiles } from '../db/schema.js';
 
-import type { UpdateUserContext } from '@q3/shared-contracts';
 import type * as schema from '../db/schema.js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 

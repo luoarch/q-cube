@@ -24,14 +24,14 @@ function ConstellationInner() {
       const r = 2 + h.weight * 5;
       return {
         ...h,
-        position: [Math.cos(angle) * r, (Math.random() - 0.5) * 2, Math.sin(angle) * r] as [
+        position: [Math.cos(angle) * r, Math.sin(i * 1.618) * 1.5, Math.sin(angle) * r] as [
           number,
           number,
           number,
         ],
       };
     });
-  }, [portfolio?.holdings]);
+  }, [portfolio]);
 
   const connections = useMemo(() => {
     const conns: Array<{

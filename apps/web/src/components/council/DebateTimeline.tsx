@@ -1,10 +1,10 @@
 'use client';
 
-import type { DebateRound } from '@q3/shared-contracts';
 
 import { AGENT_LABELS } from './constants';
-
 import styles from './council.module.css';
+
+import type { DebateRound } from '@q3/shared-contracts';
 
 const ROUND_LABELS = [
   'Veredicto Inicial',

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { updateUserContextSchema } from '@q3/shared-contracts';
 
-import { UserContextService } from './user-context.service.js';
+import { type UserContextService } from './user-context.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

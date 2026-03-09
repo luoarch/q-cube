@@ -31,7 +31,7 @@ export function RibbonSurface({
     const minVal = Math.min(...curve.map((p) => p.value));
     const range = maxVal - minVal || 1;
 
-    const baseColor = new Color(color);
+    const _baseColor = new Color(color);
     const lowColor = new Color('#ef4444');
     const highColor = new Color('#22c55e');
 

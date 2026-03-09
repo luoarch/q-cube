@@ -37,7 +37,7 @@ function SphereInner() {
       radius: 0.3 + (s.marketCap / maxMc) * 1.2,
       color: getSectorColor(s.name),
     }));
-  }, [universe?.sectors]);
+  }, [universe]);
 
   if (!universe) return null;
 

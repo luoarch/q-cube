@@ -4,8 +4,6 @@ import Link from 'next/link';
 
 import { useIntelligence } from '../../../hooks/api/useIntelligence';
 
-import type { CompanyIntelligence } from '@q3/shared-contracts';
-
 const PANEL: React.CSSProperties = {
   position: 'absolute',
   top: 0,

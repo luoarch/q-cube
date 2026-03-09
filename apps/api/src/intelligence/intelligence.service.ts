@@ -5,12 +5,11 @@ import {
 } from '@q3/shared-contracts';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
+import { type AssetService } from '../asset/asset.service.js';
 import { DB } from '../database/database.constants.js';
-import { AssetService } from '../asset/asset.service.js';
 import {
   computedMetrics,
   issuers,
-  marketSnapshots,
   refinementResults,
   securities,
   strategyRuns,

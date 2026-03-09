@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { createBacktestRunSchema } from '@q3/shared-contracts';
 
-import { BacktestService } from './backtest.service.js';
+import { type BacktestService } from './backtest.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 
