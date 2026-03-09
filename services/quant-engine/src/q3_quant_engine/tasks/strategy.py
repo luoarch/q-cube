@@ -152,24 +152,28 @@ def backtest_run_task(
             job.status = RunStatus.running
             session.commit()
 
-            cost_cfg = config_payload.get("cost_model", {})
+            # API sends camelCase keys; support both camelCase and snake_case
+            def _get(key_snake: str, key_camel: str, default=None):  # type: ignore[no-untyped-def]
+                return config_payload.get(key_camel, config_payload.get(key_snake, default))
+
+            cost_cfg = _get("cost_model", "costModel") or {}
             cost_model = CostModel(
-                fixed_cost_per_trade=cost_cfg.get("fixed_cost_per_trade", 0.0),
-                proportional_cost=cost_cfg.get("proportional_cost", 0.0005),
-                slippage_bps=cost_cfg.get("slippage_bps", 10.0),
+                fixed_cost_per_trade=cost_cfg.get("fixedCostPerTrade", cost_cfg.get("fixed_cost_per_trade", 0.0)),
+                proportional_cost=cost_cfg.get("proportionalCost", cost_cfg.get("proportional_cost", 0.0005)),
+                slippage_bps=cost_cfg.get("slippageBps", cost_cfg.get("slippage_bps", 10.0)),
             )
 
             config = BacktestConfig(
-                strategy_type=config_payload["strategy_type"],
-                start_date=date_type.fromisoformat(config_payload["start_date"]),
-                end_date=date_type.fromisoformat(config_payload["end_date"]),
-                rebalance_freq=config_payload.get("rebalance_freq", "monthly"),
-                execution_lag_days=config_payload.get("execution_lag_days", 1),
-                top_n=config_payload.get("top_n", 20),
-                equal_weight=config_payload.get("equal_weight", True),
+                strategy_type=_get("strategy_type", "strategyType"),
+                start_date=date_type.fromisoformat(_get("start_date", "startDate")),
+                end_date=date_type.fromisoformat(_get("end_date", "endDate")),
+                rebalance_freq=_get("rebalance_freq", "rebalanceFreq", "monthly"),
+                execution_lag_days=_get("execution_lag_days", "executionLagDays", 1),
+                top_n=_get("top_n", "topN", 20),
+                equal_weight=_get("equal_weight", "equalWeight", True),
                 cost_model=cost_model,
-                initial_capital=config_payload.get("initial_capital", 1_000_000.0),
-                benchmark=config_payload.get("benchmark"),
+                initial_capital=_get("initial_capital", "initialCapital", 1_000_000.0),
+                benchmark=_get("benchmark", "benchmark"),
             )
 
             result = run_backtest(session, config)
@@ -183,12 +187,32 @@ def backtest_run_task(
                 {**t, "date": str(t["date"])} for t in result.trades
             ]
 
+            # Convert snake_case metrics to camelCase for Zod schema
+            raw_m = result.metrics
+            metrics_camel = {
+                "cagr": raw_m.get("cagr", 0.0),
+                "volatility": raw_m.get("volatility", 0.0),
+                "sharpe": raw_m.get("sharpe", 0.0),
+                "sortino": raw_m.get("sortino", 0.0),
+                "maxDrawdown": raw_m.get("max_drawdown", 0.0),
+                "maxDrawdownDurationDays": raw_m.get("max_drawdown_duration_days", 0),
+                "turnoverAvg": raw_m.get("turnover_avg", 0.0),
+                "hitRate": raw_m.get("hit_rate", 0.0),
+                "totalCosts": raw_m.get("total_costs", 0.0),
+            }
+            if "excess_return" in raw_m:
+                metrics_camel["excessReturn"] = raw_m["excess_return"]
+            if "tracking_error" in raw_m:
+                metrics_camel["trackingError"] = raw_m["tracking_error"]
+            if "information_ratio" in raw_m:
+                metrics_camel["informationRatio"] = raw_m["information_ratio"]
+
             bt_run.status = RunStatus.completed
             bt_run.metrics_json = {
-                "metrics": result.metrics,
-                "equity_curve": equity_curve,
-                "trades_count": len(trades),
-                "rebalance_count": len(result.rebalance_dates),
+                "metrics": metrics_camel,
+                "equityCurve": equity_curve,
+                "tradesCount": len(trades),
+                "rebalanceCount": len(result.rebalance_dates),
             }
 
             job.status = RunStatus.completed
