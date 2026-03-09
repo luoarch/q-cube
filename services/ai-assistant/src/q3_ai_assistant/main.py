@@ -58,6 +58,7 @@ class CouncilRequest(BaseModel):
     tickers: list[str] | None = None  # for comparison mode (2-3 tickers)
     agent_ids: list[str] | None = None
     tenant_id: str
+    session_id: str | None = None  # chat session ID for budget tracking
 
 
 class CouncilResponse(BaseModel):
@@ -145,6 +146,20 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
     """Run council analysis. Called by NestJS API as proxy."""
     if not settings.enabled:
         raise HTTPException(status_code=503, detail="AI assistant is disabled")
+
+    # Budget enforcement
+    from q3_ai_assistant.security.cost_budget import CostBudget
+
+    budget = CostBudget(daily_max_cost_usd=settings.cost_limit_usd_daily)
+    with SessionLocal() as db_session:
+        if req.session_id:
+            ok, reason = budget.can_proceed(db_session, req.session_id, req.tenant_id)
+        else:
+            daily_status = budget.check_daily_budget(db_session, req.tenant_id)
+            ok = not daily_status.is_exceeded
+            reason = "Daily cost limit reached. Try again tomorrow." if not ok else None
+    if not ok:
+        raise HTTPException(status_code=429, detail=reason)
 
     from q3_ai_assistant.council.orchestrator import CouncilOrchestrator
     from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
@@ -258,6 +273,7 @@ class FreeChatRequest(BaseModel):
     message: str
     history: list[dict] | None = None
     tenant_id: str
+    session_id: str | None = None  # chat session ID for budget tracking
 
 
 class FreeChatResponse(BaseModel):
@@ -274,6 +290,20 @@ def chat_free(req: FreeChatRequest) -> FreeChatResponse:
     """Handle free-form chat with tools + RAG + LLM synthesis."""
     if not settings.enabled:
         raise HTTPException(status_code=503, detail="AI assistant is disabled")
+
+    # Budget enforcement
+    from q3_ai_assistant.security.cost_budget import CostBudget
+
+    budget = CostBudget(daily_max_cost_usd=settings.cost_limit_usd_daily)
+    with SessionLocal() as db_session:
+        if req.session_id:
+            ok, reason = budget.can_proceed(db_session, req.session_id, req.tenant_id)
+        else:
+            daily_status = budget.check_daily_budget(db_session, req.tenant_id)
+            ok = not daily_status.is_exceeded
+            reason = "Daily cost limit reached. Try again tomorrow." if not ok else None
+    if not ok:
+        raise HTTPException(status_code=429, detail=reason)
 
     from q3_ai_assistant.modules.free_chat import handle_free_chat
 
@@ -310,3 +340,50 @@ def _serialize_opinion(o: dict) -> dict:
     if "mode" in o and hasattr(o["mode"], "value"):
         o["mode"] = o["mode"].value
     return o
+
+
+# ---------------------------------------------------------------------------
+# Budget status endpoint
+# ---------------------------------------------------------------------------
+
+
+class BudgetStatusRequest(BaseModel):
+    tenant_id: str
+    session_id: str | None = None
+
+
+class BudgetStatusResponse(BaseModel):
+    daily_total_cost_usd: float
+    daily_limit_usd: float
+    daily_remaining_usd: float
+    daily_exceeded: bool
+    daily_near_limit: bool
+    session_total_cost_usd: float | None = None
+    session_limit_usd: float | None = None
+    session_exceeded: bool | None = None
+
+
+@app.post("/budget/status", response_model=BudgetStatusResponse)
+def budget_status(req: BudgetStatusRequest) -> BudgetStatusResponse:
+    """Check budget status for a tenant (and optionally a session)."""
+    from q3_ai_assistant.security.cost_budget import CostBudget
+
+    budget = CostBudget(daily_max_cost_usd=settings.cost_limit_usd_daily)
+
+    with SessionLocal() as db_session:
+        daily = budget.check_daily_budget(db_session, req.tenant_id)
+        result = BudgetStatusResponse(
+            daily_total_cost_usd=daily.total_cost_usd,
+            daily_limit_usd=daily.limit_cost_usd,
+            daily_remaining_usd=daily.cost_remaining,
+            daily_exceeded=daily.is_exceeded,
+            daily_near_limit=daily.is_near_limit,
+        )
+
+        if req.session_id:
+            session_status = budget.check_session_budget(db_session, req.session_id)
+            result.session_total_cost_usd = session_status.total_cost_usd
+            result.session_limit_usd = session_status.limit_cost_usd
+            result.session_exceeded = session_status.is_exceeded
+
+    return result

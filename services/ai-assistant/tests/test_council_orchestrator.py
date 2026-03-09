@@ -64,6 +64,7 @@ def _make_opinion(agent_id: str, verdict: AgentVerdict = AgentVerdict.watch) -> 
         fallback_level=0,
         tokens_used=100,
         cost_usd=0.01,
+        latency_ms=500.0,
     )
 
 
@@ -225,6 +226,33 @@ class TestBuildAudit:
         assert audit.prompt_versions["barsi"] == 1
         assert audit.providers_used["graham"] == "openai"
         assert audit.fallback_levels["barsi"] == 0
+
+    def test_audit_latency_aggregated(self):
+        opinions = [
+            _make_opinion("barsi"),
+            _make_opinion("graham"),
+        ]
+        audit = _build_audit(opinions)
+        assert audit.total_latency_ms == 1000.0  # 500 + 500
+
+    def test_audit_input_hash_with_packet(self):
+        opinions = [_make_opinion("barsi")]
+        packet = _make_packet()
+        audit = _build_audit(opinions, packet)
+        assert len(audit.input_hash) == 64  # SHA-256 hex digest
+        assert audit.input_hash != ""
+
+    def test_audit_input_hash_without_packet(self):
+        opinions = [_make_opinion("barsi")]
+        audit = _build_audit(opinions)
+        assert audit.input_hash == ""
+
+    def test_audit_input_hash_deterministic(self):
+        opinions = [_make_opinion("barsi")]
+        packet = _make_packet()
+        audit1 = _build_audit(opinions, packet)
+        audit2 = _build_audit(opinions, packet)
+        assert audit1.input_hash == audit2.input_hash
 
 
 # ---------------------------------------------------------------------------

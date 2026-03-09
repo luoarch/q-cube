@@ -42,6 +42,7 @@ class AgentOpinion:
     fallback_level: int = 0
     tokens_used: int = 0
     cost_usd: float = 0.0
+    latency_ms: float = 0.0
 
 
 @dataclass

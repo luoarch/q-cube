@@ -141,6 +141,7 @@ class BaseCouncilAgent(ABC):
             fallback_level=result.fallback_level,
             tokens_used=result.response.tokens_used,
             cost_usd=result.response.cost_usd,
+            latency_ms=result.response.latency_ms,
         )
 
     def _fallback_opinion(

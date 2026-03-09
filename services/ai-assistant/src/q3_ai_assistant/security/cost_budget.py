@@ -104,12 +104,21 @@ class CostBudget:
         result = db.execute(
             text("""
                 SELECT
-                    COALESCE(SUM(cm.tokens_used), 0),
-                    COALESCE(SUM(cm.cost_usd), 0)
-                FROM chat_messages cm
-                JOIN chat_sessions cs ON cs.id = cm.session_id
-                WHERE cs.tenant_id = :tenant_id
-                AND cm.created_at >= :today
+                    COALESCE(SUM(tokens), 0),
+                    COALESCE(SUM(cost), 0)
+                FROM (
+                    SELECT cm.tokens_used AS tokens, cm.cost_usd AS cost
+                    FROM chat_messages cm
+                    JOIN chat_sessions cs ON cs.id = cm.session_id
+                    WHERE cs.tenant_id = :tenant_id
+                    AND cm.created_at >= :today
+                    UNION ALL
+                    SELECT 0 AS tokens, co.cost_usd AS cost
+                    FROM council_opinions co
+                    JOIN council_sessions ccs ON ccs.id = co.council_session_id
+                    WHERE ccs.tenant_id = :tenant_id
+                    AND co.created_at >= :today
+                ) combined
             """),
             {"tenant_id": tenant_id, "today": str(today)},
         ).one()

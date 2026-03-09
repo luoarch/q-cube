@@ -77,7 +77,7 @@ class CouncilOrchestrator:
             moderator_synthesis=_empty_synthesis(),
             debate_log=None,
             disclaimer=DISCLAIMER,
-            audit_trail=_build_audit([opinion]),
+            audit_trail=_build_audit([opinion], packet),
         )
 
     def run_roundtable(
@@ -110,7 +110,7 @@ class CouncilOrchestrator:
             moderator_synthesis=synthesis,
             debate_log=None,
             disclaimer=DISCLAIMER,
-            audit_trail=_build_audit(opinions),
+            audit_trail=_build_audit(opinions, packet),
         )
 
     def run_debate(
@@ -241,7 +241,7 @@ class CouncilOrchestrator:
             moderator_synthesis=synthesis,
             debate_log=debate_log,
             disclaimer=DISCLAIMER,
-            audit_trail=_build_audit(final_opinions),
+            audit_trail=_build_audit(final_opinions, packet),
         )
 
 
@@ -301,7 +301,7 @@ class CouncilOrchestrator:
             moderator_synthesis=synthesis,
             debate_log=None,
             disclaimer=DISCLAIMER,
-            audit_trail=_build_audit(all_opinions),
+            audit_trail=_build_audit(all_opinions, packets[0]),
             comparison_matrix=comp_matrix,
         )
 
@@ -504,9 +504,20 @@ def _opinion_to_dict(o: AgentOpinion) -> dict:
     }
 
 
-def _build_audit(opinions: list[AgentOpinion]) -> AuditTrail:
+def _build_audit(
+    opinions: list[AgentOpinion],
+    packet: AssetAnalysisPacket | None = None,
+) -> AuditTrail:
+    import hashlib
+    import json
+
+    input_hash = ""
+    if packet is not None:
+        packet_str = json.dumps(packet.to_dict(), sort_keys=True, default=str)
+        input_hash = hashlib.sha256(packet_str.encode()).hexdigest()
+
     return AuditTrail(
-        input_hash="",
+        input_hash=input_hash,
         prompt_versions={o.agent_id: o.prompt_version for o in opinions},
         profile_versions={o.agent_id: o.profile_version for o in opinions},
         models_used={o.agent_id: o.model_used for o in opinions},
@@ -514,5 +525,5 @@ def _build_audit(opinions: list[AgentOpinion]) -> AuditTrail:
         fallback_levels={o.agent_id: o.fallback_level for o in opinions},
         total_tokens=sum(o.tokens_used for o in opinions),
         total_cost_usd=sum(o.cost_usd for o in opinions),
-        total_latency_ms=0,
+        total_latency_ms=sum(o.latency_ms for o in opinions),
     )

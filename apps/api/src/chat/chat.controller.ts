@@ -73,6 +73,27 @@ export class ChatController {
     return this.chatService.getMessages(sessionId, user.tenantId);
   }
 
+  @Get('budget')
+  async getBudget(@CurrentUser() user: JwtPayload) {
+    try {
+      const res = await fetch(`${AI_ASSISTANT_URL}/budget/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: user.tenantId }),
+      });
+
+      if (!res.ok) {
+        this.logger.warn(`Budget status failed: ${res.status}`);
+        return { daily_exceeded: false, daily_remaining_usd: 0, daily_limit_usd: 0 };
+      }
+
+      return (await res.json()) as Record<string, unknown>;
+    } catch (err) {
+      this.logger.error(`Budget status error: ${err}`);
+      return { daily_exceeded: false, daily_remaining_usd: 0, daily_limit_usd: 0 };
+    }
+  }
+
   @Get('sessions/:id/council')
   async getCouncil(
     @Param('id', new ParseUUIDPipe()) sessionId: string,
@@ -109,17 +130,17 @@ export class ChatController {
           message,
           history,
           tenant_id: tenantId,
+          session_id: sessionId,
         }),
       });
 
       if (!res.ok) {
         const errorText = await res.text();
         this.logger.warn(`Free chat proxy failed: ${res.status} ${errorText}`);
-        return this.chatService.addMessage(
-          sessionId,
-          'assistant',
-          `Erro ao processar mensagem: ${res.status}`,
-        );
+        const userMsg = res.status === 429
+          ? 'Limite de custo atingido. Inicie uma nova sessao ou tente novamente amanha.'
+          : `Erro ao processar mensagem: ${res.status}`;
+        return this.chatService.addMessage(sessionId, 'assistant', userMsg);
       }
 
       const result = (await res.json()) as {
@@ -172,17 +193,17 @@ export class ChatController {
           tickers: mode === 'comparison' ? tickers : undefined,
           agent_ids: input.agentIds ?? null,
           tenant_id: tenantId,
+          session_id: sessionId,
         }),
       });
 
       if (!res.ok) {
         const errorText = await res.text();
         this.logger.warn(`Council proxy failed: ${res.status} ${errorText}`);
-        return this.chatService.addMessage(
-          sessionId,
-          'assistant',
-          `Erro ao consultar o conselho de investimentos: ${res.status}`,
-        );
+        const userMsg = res.status === 429
+          ? 'Limite de custo atingido. Inicie uma nova sessao ou tente novamente amanha.'
+          : `Erro ao consultar o conselho de investimentos: ${res.status}`;
+        return this.chatService.addMessage(sessionId, 'assistant', userMsg);
       }
 
       const councilResult = (await res.json()) as Record<string, unknown>;
