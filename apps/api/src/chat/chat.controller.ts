@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Logger,
   Param,
   ParseUUIDPipe,
@@ -9,14 +10,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { createChatSessionSchema, sendMessageSchema } from '@q3/shared-contracts';
+import { eq } from 'drizzle-orm';
 
 import { ChatService } from './chat.service.js';
 import { CouncilService } from './council.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { DB } from '../database/database.constants.js';
+import { tenants } from '../db/schema.js';
 
 import type { ChatMode, SendMessage } from '@q3/shared-contracts';
 import type { JwtPayload } from '../auth/auth.service.js';
+import type * as schema from '../db/schema.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8400';
 
@@ -30,6 +36,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly councilService: CouncilService,
+    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
   @Post('sessions')
@@ -57,12 +64,14 @@ export class ChatController {
     // Determine mode: check if message-level mode or session mode requires council
     const mode = input.mode ?? 'free_chat';
 
+    const dailyCostLimit = await this.getTenantCostLimit(user.tenantId);
+
     if (COUNCIL_MODES.has(mode) && input.tickers?.length) {
-      return this.proxyToCouncil(sessionId, user.tenantId, mode, input);
+      return this.proxyToCouncil(sessionId, user.tenantId, mode, input, dailyCostLimit);
     }
 
     // Free chat: proxy to AI assistant for tools + RAG + LLM synthesis
-    return this.proxyToFreeChat(sessionId, user.tenantId, input.content);
+    return this.proxyToFreeChat(sessionId, user.tenantId, input.content, dailyCostLimit);
   }
 
   @Get('sessions/:id/messages')
@@ -114,6 +123,7 @@ export class ChatController {
     sessionId: string,
     tenantId: string,
     message: string,
+    dailyCostLimit?: number,
   ) {
     try {
       // Get recent history for conversational context
@@ -131,6 +141,7 @@ export class ChatController {
           history,
           tenant_id: tenantId,
           session_id: sessionId,
+          ...(dailyCostLimit != null ? { daily_cost_limit_usd: dailyCostLimit } : {}),
         }),
       });
 
@@ -178,6 +189,7 @@ export class ChatController {
     tenantId: string,
     mode: ChatMode,
     input: SendMessage,
+    dailyCostLimit?: number,
   ) {
     const tickers = input.tickers!;
     const ticker = tickers[0]!;
@@ -194,6 +206,7 @@ export class ChatController {
           agent_ids: input.agentIds ?? null,
           tenant_id: tenantId,
           session_id: sessionId,
+          ...(dailyCostLimit != null ? { daily_cost_limit_usd: dailyCostLimit } : {}),
         }),
       });
 
@@ -279,6 +292,22 @@ export class ChatController {
         'assistant',
         'Servico de IA indisponivel no momento. Tente novamente mais tarde.',
       );
+    }
+  }
+
+  private async getTenantCostLimit(tenantId: string): Promise<number | undefined> {
+    try {
+      const rows = await this.db
+        .select({ limit: tenants.aiDailyCostLimitUsd })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
+
+      const raw = rows[0]?.limit;
+      return raw != null ? Number(raw) : undefined;
+    } catch (err) {
+      this.logger.warn(`Failed to fetch tenant cost limit: ${err}`);
+      return undefined;
     }
   }
 }

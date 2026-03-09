@@ -101,6 +101,8 @@ class Tenant(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    rate_limit_rpm: Mapped[int] = mapped_column(Integer, nullable=False, server_default="100")
+    ai_daily_cost_limit_usd: Mapped[float] = mapped_column(Numeric, nullable=False, server_default="10.0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

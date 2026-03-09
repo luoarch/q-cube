@@ -70,6 +70,7 @@ class CouncilRequest(BaseModel):
     agent_ids: list[str] | None = None
     tenant_id: str
     session_id: str | None = None  # chat session ID for budget tracking
+    daily_cost_limit_usd: float | None = None  # per-tenant override
 
 
 class CouncilResponse(BaseModel):
@@ -158,10 +159,11 @@ def council_analyze(req: CouncilRequest) -> CouncilResponse:
     if not settings.enabled:
         raise HTTPException(status_code=503, detail="AI assistant is disabled")
 
-    # Budget enforcement
+    # Budget enforcement (per-tenant limit if provided)
     from q3_ai_assistant.security.cost_budget import CostBudget
 
-    budget = CostBudget(daily_max_cost_usd=settings.cost_limit_usd_daily)
+    daily_limit = req.daily_cost_limit_usd or settings.cost_limit_usd_daily
+    budget = CostBudget(daily_max_cost_usd=daily_limit)
     with SessionLocal() as db_session:
         if req.session_id:
             ok, reason = budget.can_proceed(db_session, req.session_id, req.tenant_id)
@@ -285,6 +287,7 @@ class FreeChatRequest(BaseModel):
     history: list[dict] | None = None
     tenant_id: str
     session_id: str | None = None  # chat session ID for budget tracking
+    daily_cost_limit_usd: float | None = None  # per-tenant override
 
 
 class FreeChatResponse(BaseModel):
@@ -302,10 +305,18 @@ def chat_free(req: FreeChatRequest) -> FreeChatResponse:
     if not settings.enabled:
         raise HTTPException(status_code=503, detail="AI assistant is disabled")
 
-    # Budget enforcement
+    # PII redaction — strip sensitive data before LLM processing
+    from q3_ai_assistant.security.pii_detector import contains_pii, redact_pii
+
+    if contains_pii(req.message):
+        logger.info("pii_detected_and_redacted session=%s", req.session_id)
+        req.message = redact_pii(req.message)
+
+    # Budget enforcement (per-tenant limit if provided)
     from q3_ai_assistant.security.cost_budget import CostBudget
 
-    budget = CostBudget(daily_max_cost_usd=settings.cost_limit_usd_daily)
+    daily_limit = req.daily_cost_limit_usd or settings.cost_limit_usd_daily
+    budget = CostBudget(daily_max_cost_usd=daily_limit)
     with SessionLocal() as db_session:
         if req.session_id:
             ok, reason = budget.can_proceed(db_session, req.session_id, req.tenant_id)

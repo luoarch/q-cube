@@ -29,6 +29,8 @@ export const jobKindEnum = pgEnum('job_kind', ['strategy_run', 'backtest_run']);
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull(),
+  rateLimitRpm: integer('rate_limit_rpm').notNull().default(100),
+  aiDailyCostLimitUsd: numeric('ai_daily_cost_limit_usd').notNull().default('10.0'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
