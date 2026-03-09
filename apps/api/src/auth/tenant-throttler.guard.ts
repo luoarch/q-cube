@@ -6,9 +6,8 @@ import { DB } from '../database/database.constants.js';
 import { tenants } from '../db/schema.js';
 
 import type * as schema from '../db/schema.js';
-import type { ExecutionContext } from '@nestjs/common';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ThrottlerRequest } from '@nestjs/throttler';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 /**
  * Per-tenant rate limiter that reads `rate_limit_rpm` from the tenants table.

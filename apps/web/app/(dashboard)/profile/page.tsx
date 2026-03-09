@@ -1,13 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
+import styles from './profile.module.css';
 import { useUpdateUserContext, useUserContext } from '../../../src/hooks/api/useUserContext';
 
 import type { UpdateUserContext } from '@q3/shared-contracts';
-
-import styles from './profile.module.css';
 
 const STRATEGY_OPTIONS = [
   { value: 'magic_formula_original', label: 'Magic Formula (Original)' },
@@ -33,19 +32,28 @@ export default function ProfilePage() {
   const { data: profile, isLoading } = useUserContext();
   const updateMutation = useUpdateUserContext();
 
+  const defaults = useMemo(() => ({
+    strategy: profile?.preferredStrategy ?? null,
+    watchlist: (profile?.watchlistJson ?? []).join(', '),
+    chatMode: profile?.preferencesJson?.defaultChatMode ?? '',
+    agents: profile?.preferencesJson?.favoriteAgents ?? [],
+  }), [profile]);
+
   const [preferredStrategy, setPreferredStrategy] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState('');
   const [defaultChatMode, setDefaultChatMode] = useState('');
   const [favoriteAgents, setFavoriteAgents] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    if (!profile) return;
-    setPreferredStrategy(profile.preferredStrategy);
-    setWatchlist((profile.watchlistJson ?? []).join(', '));
-    setDefaultChatMode(profile.preferencesJson?.defaultChatMode ?? '');
-    setFavoriteAgents(profile.preferencesJson?.favoriteAgents ?? []);
-  }, [profile]);
+  // Sync from server data once on first load
+  if (profile && !initialized) {
+    setPreferredStrategy(defaults.strategy);
+    setWatchlist(defaults.watchlist);
+    setDefaultChatMode(defaults.chatMode);
+    setFavoriteAgents(defaults.agents);
+    setInitialized(true);
+  }
 
   const handleAgentToggle = useCallback((agentId: string) => {
     setFavoriteAgents((prev) =>

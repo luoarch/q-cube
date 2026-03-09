@@ -4,6 +4,13 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import styles from './chat.module.css';
+import {
+  CouncilResultPanel,
+  DISCLAIMER,
+  MODE_LABELS,
+  parseCouncilData,
+} from '../../../src/components/council';
 import {
   useArchiveSession,
   useChatMessages,
@@ -11,16 +18,8 @@ import {
   useCreateChatSession,
   useSendMessage,
 } from '../../../src/hooks/api/useChat';
-import {
-  CouncilResultPanel,
-  DISCLAIMER,
-  MODE_LABELS,
-  parseCouncilData,
-} from '../../../src/components/council';
 
 import type { ChatMessage, ChatMode } from '@q3/shared-contracts';
-
-import styles from './chat.module.css';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
-  type ChatMessage,
-  type ChatSession,
   type CreateChatSession,
   chatMessageSchema,
   chatSessionSchema,
@@ -105,7 +103,7 @@ export class ChatService {
     return result.length;
   }
 
-  async getMessages(sessionId: string, tenantId: string) {
+  async getMessages(sessionId: string, _tenantId: string) {
     const rows = await this.db
       .select()
       .from(chatMessages)

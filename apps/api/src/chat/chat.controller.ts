@@ -14,16 +14,16 @@ import {
 import { createChatSessionSchema, sendMessageSchema } from '@q3/shared-contracts';
 import { eq } from 'drizzle-orm';
 
-import { ChatService } from './chat.service.js';
-import { CouncilService } from './council.service.js';
+import { type ChatService } from './chat.service.js';
+import { type CouncilService } from './council.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { DB } from '../database/database.constants.js';
 import { tenants } from '../db/schema.js';
 
-import type { ChatMode, SendMessage } from '@q3/shared-contracts';
 import type { JwtPayload } from '../auth/auth.service.js';
 import type * as schema from '../db/schema.js';
+import type { ChatMode, SendMessage } from '@q3/shared-contracts';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8400';
