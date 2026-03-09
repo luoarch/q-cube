@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
 import { useBacktestRuns, useCreateBacktestRun } from '../../../src/hooks/api/useBacktest';
@@ -123,9 +122,6 @@ export default function BacktestPage() {
   return (
     <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <header className="dashboard-header">
-        <Link href="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
-          ← Q³
-        </Link>
         <h1>Backtest Timeline</h1>
       </header>
 

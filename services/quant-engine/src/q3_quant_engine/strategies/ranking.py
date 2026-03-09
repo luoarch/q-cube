@@ -18,11 +18,11 @@ from decimal import Decimal
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from q3_quant_engine.models.entities import Asset, FinancialStatement
+from q3_shared_models.entities import Asset, FinancialStatement
 
 logger = logging.getLogger(__name__)
 
-USE_CANONICAL_FUNDAMENTALS = os.getenv("USE_CANONICAL_FUNDAMENTALS", "false").lower() in ("true", "1", "yes")
+USE_CANONICAL_FUNDAMENTALS = os.getenv("USE_CANONICAL_FUNDAMENTALS", "true").lower() in ("true", "1", "yes")
 
 # --- Brazil filters ---
 EXCLUDED_SECTORS = {"financeiro", "utilidade pública"}

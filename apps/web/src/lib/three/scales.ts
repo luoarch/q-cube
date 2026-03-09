@@ -17,9 +17,26 @@ function extent(items: RankingItem[], fn: (d: RankingItem) => number): [number, 
   return [min, max];
 }
 
+/**
+ * Clamp extent at p5/p95 percentiles to prevent extreme outliers
+ * from compressing all points into a tiny cluster.
+ */
+function robustExtent(
+  items: RankingItem[],
+  fn: (d: RankingItem) => number,
+  pLow = 0.02,
+  pHigh = 0.98,
+): [number, number] {
+  const sorted = items.map(fn).sort((a, b) => a - b);
+  const lo = sorted[Math.floor(sorted.length * pLow)] ?? sorted[0]!;
+  const hi = sorted[Math.floor(sorted.length * pHigh)] ?? sorted[sorted.length - 1]!;
+  if (lo === hi) return [lo - 1, hi + 1];
+  return [lo, hi];
+}
+
 export function createQCubeScales(items: RankingItem[]) {
-  const eyExtent = extent(items, (d) => d.earningsYield);
-  const rocExtent = extent(items, (d) => d.returnOnCapital);
+  const eyExtent = robustExtent(items, (d) => d.earningsYield);
+  const rocExtent = robustExtent(items, (d) => d.returnOnCapital);
   const mcExtent = extent(items, (d) => Math.max(d.marketCap, 1));
 
   const x = scaleLinear().domain(eyExtent).range([-HALF_CUBE, HALF_CUBE]).clamp(true);
