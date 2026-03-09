@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AIModule } from './ai/ai.module.js';
 import { AssetModule } from './asset/asset.module.js';
+import { BacktestModule } from './backtest/backtest.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { ComparisonModule } from './comparison/comparison.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -40,6 +41,7 @@ import { UniverseModule } from './universe/universe.module.js';
     DashboardModule,
     UniverseModule,
     AssetModule,
+    BacktestModule,
     PortfolioModule,
     RefinerModule,
     IntelligenceModule,

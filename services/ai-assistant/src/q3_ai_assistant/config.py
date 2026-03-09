@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Multi-provider cascade keys
     anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-6"
     google_api_key: str = ""
 
     # Orchestrator pool models (premium reasoning)
