@@ -8,9 +8,19 @@ export const createStrategyRunSchema = z.object({
   asOfDate: z.string().datetime().optional(),
 });
 
+export const rankedAssetSchema = z.object({
+  rank: z.number(),
+  ticker: z.string(),
+  name: z.string(),
+  sector: z.string().nullable(),
+  earningsYield: z.number().nullable(),
+  returnOnCapital: z.number().nullable(),
+  scoreDetails: z.record(z.string(), z.number()).optional(),
+});
+
 export const strategyResultSchema = z
   .object({
-    rankedAssets: z.array(z.union([z.string(), z.object({ ticker: z.string() })])),
+    rankedAssets: z.array(rankedAssetSchema),
   })
   .passthrough();
 
@@ -33,6 +43,7 @@ export const createStrategyRunResponseSchema = z.object({
   jobId: uuidSchema,
 });
 
+export type RankedAsset = z.infer<typeof rankedAssetSchema>;
 export type CreateStrategyRunInput = z.infer<typeof createStrategyRunSchema>;
 export type StrategyRunResponse = z.infer<typeof strategyRunResponseSchema>;
 export type CreateStrategyRunResponse = z.infer<typeof createStrategyRunResponseSchema>;

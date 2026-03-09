@@ -27,6 +27,7 @@ export const assetDetailSchema = z.object({
   earningsYield: z.number(),
   returnOnCapital: z.number(),
   roic: z.number(),
+  roe: z.number().nullable(),
   grossMargin: z.number(),
   netMargin: z.number(),
   netDebtToEbitda: z.number(),

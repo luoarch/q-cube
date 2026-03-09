@@ -27,13 +27,16 @@ from q3_fundamentals_engine.parsers.models import ParsedRow
 
 logger = logging.getLogger(__name__)
 
-# Maps CVM period_order values to our PeriodType enum
+# Maps CVM period_order values to our PeriodType enum.
+# "PENÚLTIMO"/"PENULTIMO" = prior-year comparison data included in the same DFP filing.
+# We SKIP those rows entirely — they duplicate the previous year's actual filing.
 _PERIOD_TYPE_MAP: dict[str, PeriodType] = {
     "ÚLTIMO": PeriodType.annual,
     "ULTIMO": PeriodType.annual,
-    "PENÚLTIMO": PeriodType.annual,
-    "PENULTIMO": PeriodType.annual,
 }
+
+# Period orders that should be discarded (prior-year comparison data)
+_SKIP_PERIOD_ORDERS: set[str] = {"PENÚLTIMO", "PENULTIMO"}
 
 # Maps CVM statement_type strings to FilingType
 _FILING_TYPE_FROM_PERIOD: dict[str, FilingType] = {
@@ -86,9 +89,22 @@ class NormalizationPipeline:
         if not parsed_rows:
             return []
 
+        # Filter out prior-year comparison rows ("PENÚLTIMO")
+        filtered_rows = [
+            row for row in parsed_rows
+            if row.period_order.upper() not in _SKIP_PERIOD_ORDERS
+        ]
+        skipped = len(parsed_rows) - len(filtered_rows)
+        if skipped:
+            logger.info(
+                "Skipped %d prior-year (PENÚLTIMO) rows out of %d total",
+                skipped,
+                len(parsed_rows),
+            )
+
         # Group rows by (cd_cvm, ref_date, version)
         groups: dict[tuple[str, str, int], list[ParsedRow]] = defaultdict(list)
-        for row in parsed_rows:
+        for row in filtered_rows:
             key = (row.cd_cvm, row.ref_date, row.version)
             groups[key].append(row)
 

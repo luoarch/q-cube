@@ -12,85 +12,161 @@ export class AssetService {
   constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {}
 
   async getByTicker(ticker: string, _tenantId: string) {
-    // CTE computes PERCENT_RANK across the full universe, then filters
+    // Main query: fundamentals from compat view + derived metrics
     const result = await this.db.execute(sql`
       WITH universe AS (
         SELECT
-          ticker, name, sector,
-          ebit, net_debt, ebitda, net_working_capital, fixed_assets,
-          roic, market_cap, avg_daily_volume,
-          net_margin, gross_margin, earnings_yield,
-          -- ROC: EBIT / (NWC + Fixed Assets), NULL when denominator is 0 or NULL
+          v.ticker, v.name, v.sector, v.issuer_id, v.security_id,
+          v.ebit, v.net_debt, v.ebitda, v.net_working_capital, v.fixed_assets,
+          v.roic, v.market_cap, v.avg_daily_volume,
+          v.net_margin, v.gross_margin,
+          COALESCE(
+            v.earnings_yield,
+            CASE
+              WHEN COALESCE(v.market_cap, 0) + COALESCE(v.net_debt, 0) > 0
+              THEN v.ebit / (COALESCE(v.market_cap, 0) + COALESCE(v.net_debt, 0))
+            END
+          ) AS earnings_yield,
           CASE
-            WHEN COALESCE(net_working_capital, 0) + COALESCE(fixed_assets, 0) != 0
-            THEN ebit / (COALESCE(net_working_capital, 0) + COALESCE(fixed_assets, 0))
+            WHEN COALESCE(v.net_working_capital, 0) + COALESCE(v.fixed_assets, 0) != 0
+            THEN v.ebit / (COALESCE(v.net_working_capital, 0) + COALESCE(v.fixed_assets, 0))
           END AS return_on_capital,
-          -- Percentile ranks (0 = worst, 1 = best in universe)
-          PERCENT_RANK() OVER (ORDER BY roic NULLS FIRST)            AS pct_roic,
-          PERCENT_RANK() OVER (ORDER BY earnings_yield NULLS FIRST)  AS pct_ey,
-          PERCENT_RANK() OVER (ORDER BY gross_margin NULLS FIRST)    AS pct_gm,
-          PERCENT_RANK() OVER (ORDER BY net_margin NULLS FIRST)      AS pct_nm,
+          PERCENT_RANK() OVER (ORDER BY v.roic NULLS FIRST)            AS pct_roic,
+          PERCENT_RANK() OVER (ORDER BY COALESCE(
+            v.earnings_yield,
+            CASE
+              WHEN COALESCE(v.market_cap, 0) + COALESCE(v.net_debt, 0) > 0
+              THEN v.ebit / (COALESCE(v.market_cap, 0) + COALESCE(v.net_debt, 0))
+            END
+          ) NULLS FIRST)  AS pct_ey,
+          PERCENT_RANK() OVER (ORDER BY v.gross_margin NULLS FIRST)    AS pct_gm,
+          PERCENT_RANK() OVER (ORDER BY v.net_margin NULLS FIRST)      AS pct_nm,
           PERCENT_RANK() OVER (
             ORDER BY CASE
-              WHEN COALESCE(net_working_capital, 0) + COALESCE(fixed_assets, 0) != 0
-              THEN ebit / (COALESCE(net_working_capital, 0) + COALESCE(fixed_assets, 0))
+              WHEN COALESCE(v.net_working_capital, 0) + COALESCE(v.fixed_assets, 0) != 0
+              THEN v.ebit / (COALESCE(v.net_working_capital, 0) + COALESCE(v.fixed_assets, 0))
             END NULLS FIRST
           ) AS pct_roc
-        FROM v_financial_statements_compat
+        FROM v_financial_statements_compat v
+      ),
+      -- Latest price from market snapshots
+      latest_price AS (
+        SELECT DISTINCT ON (ms.security_id)
+          ms.security_id,
+          ms.price
+        FROM market_snapshots ms
+        ORDER BY ms.security_id, ms.fetched_at DESC
+      ),
+      -- Latest net_income + equity from statement_lines (annual, consolidated)
+      latest_fundamentals AS (
+        SELECT DISTINCT ON (f.issuer_id, sl.canonical_key)
+          f.issuer_id,
+          sl.canonical_key,
+          sl.normalized_value
+        FROM statement_lines sl
+        JOIN filings f ON f.id = sl.filing_id
+        WHERE sl.canonical_key IN ('net_income', 'equity', 'revenue')
+          AND sl.period_type = 'annual'
+          AND sl.scope = 'con'
+        ORDER BY f.issuer_id, sl.canonical_key, sl.reference_date DESC
+      ),
+      -- Dividends paid (sum of negative DFC entries with "dividendo"/"juros sobre capital" in label)
+      -- Uses the most recent annual period per issuer
+      latest_dividends AS (
+        SELECT
+          f.issuer_id,
+          ABS(SUM(sl.normalized_value)) AS dividends_paid
+        FROM statement_lines sl
+        JOIN filings f ON f.id = sl.filing_id
+        WHERE sl.statement_type IN ('DFC_MD', 'DFC_MI')
+          AND sl.period_type = 'annual'
+          AND sl.scope = 'con'
+          AND sl.normalized_value < 0
+          AND (
+            sl.as_reported_label ILIKE '%dividendo%pago%'
+            OR sl.as_reported_label ILIKE '%juros sobre capital próprio%pago%'
+            OR sl.as_reported_label ILIKE '%juros sobre capital proprio%pago%'
+          )
+          AND sl.reference_date = (
+            SELECT MAX(sl2.reference_date)
+            FROM statement_lines sl2
+            JOIN filings f2 ON f2.id = sl2.filing_id
+            WHERE f2.issuer_id = f.issuer_id
+              AND sl2.period_type = 'annual'
+              AND sl2.statement_type IN ('DFC_MD', 'DFC_MI')
+          )
+        GROUP BY f.issuer_id
+      ),
+      -- ROE from computed_metrics
+      latest_roe AS (
+        SELECT DISTINCT ON (cm.issuer_id)
+          cm.issuer_id,
+          cm.value AS roe
+        FROM computed_metrics cm
+        WHERE cm.metric_code = 'roe'
+          AND cm.period_type = 'annual'
+        ORDER BY cm.issuer_id, cm.reference_date DESC
       )
-      SELECT * FROM universe WHERE ticker = ${ticker} LIMIT 1
+      SELECT
+        u.*,
+        lp.price,
+        ni.normalized_value AS net_income,
+        eq.normalized_value AS equity,
+        rev.normalized_value AS revenue,
+        ld.dividends_paid,
+        lr.roe
+      FROM universe u
+      LEFT JOIN latest_price lp ON lp.security_id = u.security_id
+      LEFT JOIN latest_fundamentals ni ON ni.issuer_id = u.issuer_id AND ni.canonical_key = 'net_income'
+      LEFT JOIN latest_fundamentals eq ON eq.issuer_id = u.issuer_id AND eq.canonical_key = 'equity'
+      LEFT JOIN latest_fundamentals rev ON rev.issuer_id = u.issuer_id AND rev.canonical_key = 'revenue'
+      LEFT JOIN latest_dividends ld ON ld.issuer_id = u.issuer_id
+      LEFT JOIN latest_roe lr ON lr.issuer_id = u.issuer_id
+      WHERE u.ticker = ${ticker}
+      LIMIT 1
     `);
 
-    const row = result.rows[0] as
-      | {
-          ticker: string;
-          name: string | null;
-          sector: string | null;
-          ebit: string | null;
-          net_debt: string | null;
-          ebitda: string | null;
-          net_working_capital: string | null;
-          fixed_assets: string | null;
-          roic: string | null;
-          market_cap: string | null;
-          avg_daily_volume: string | null;
-          net_margin: string | null;
-          gross_margin: string | null;
-          earnings_yield: string | null;
-          return_on_capital: string | null;
-          pct_roic: string | null;
-          pct_ey: string | null;
-          pct_gm: string | null;
-          pct_nm: string | null;
-          pct_roc: string | null;
-        }
-      | undefined;
+    const row = result.rows[0] as Record<string, string | null> | undefined;
 
     if (!row) {
       throw new NotFoundException(`Asset not found: ${ticker}`);
     }
 
-    const marketCap = row.market_cap ? Number(row.market_cap) : 0;
-    const netDebt = row.net_debt ? Number(row.net_debt) : 0;
-    const ebitda = row.ebitda ? Number(row.ebitda) : 0;
-    const roic = row.roic ? Number(row.roic) : 0;
-    const earningsYield = row.earnings_yield ? Number(row.earnings_yield) : 0;
-    const netMargin = row.net_margin ? Number(row.net_margin) : 0;
-    const grossMargin = row.gross_margin ? Number(row.gross_margin) : 0;
-    const returnOnCapital = row.return_on_capital ? Number(row.return_on_capital) : 0;
-    const netDebtToEbitda = ebitda > 0 ? netDebt / ebitda : 0;
+    const num = (v: string | null | undefined) => (v ? Number(v) : null);
+
+    const marketCap = num(row.market_cap) ?? 0;
+    const ebit = num(row.ebit) ?? 0;
+    const netDebt = num(row.net_debt) ?? 0;
+    const ebitda = num(row.ebitda) ?? 0;
+    const roic = num(row.roic) ?? 0;
+    const netMargin = num(row.net_margin) ?? 0;
+    const grossMargin = num(row.gross_margin) ?? 0;
+    const returnOnCapital = num(row.return_on_capital) ?? 0;
+    const netDebtToEbitda = ebitda !== 0 ? netDebt / ebitda : null;
+    const earningsYield = num(row.earnings_yield) ?? 0;
+    const price = num(row.price);
+    const netIncome = num(row.net_income);
+    const equity = num(row.equity);
+    const revenue = num(row.revenue);
+    const dividendsPaid = num(row.dividends_paid);
+    const roe = num(row.roe);
+
+    // Derived valuation multiples
+    const peRatio = netIncome && netIncome > 0 ? marketCap / netIncome : null;
+    const pbRatio = equity && equity > 0 ? marketCap / equity : null;
+    const dividendYield = dividendsPaid && marketCap > 0 ? dividendsPaid / marketCap : null;
 
     // Percentile-ranked factors (0-1 scale, relative to universe)
-    const pctRoic = row.pct_roic ? Number(row.pct_roic) : 0;
-    const pctEy = row.pct_ey ? Number(row.pct_ey) : 0;
-    const pctGm = row.pct_gm ? Number(row.pct_gm) : 0;
-    const pctNm = row.pct_nm ? Number(row.pct_nm) : 0;
-    const pctRoc = row.pct_roc ? Number(row.pct_roc) : 0;
+    const pctRoic = num(row.pct_roic) ?? 0;
+    const pctEy = num(row.pct_ey) ?? 0;
+    const pctGm = num(row.pct_gm) ?? 0;
+    const pctNm = num(row.pct_nm) ?? 0;
+    const pctRoc = num(row.pct_roc) ?? 0;
 
     const factors = [
       { name: 'ROIC', value: pctRoic, raw: roic, max: 1 },
       { name: 'Earnings Yield', value: pctEy, raw: earningsYield, max: 1 },
-      { name: 'ROC', value: pctRoc, raw: returnOnCapital, max: 1 },
+      { name: 'ROE', value: pctRoc, raw: roe ?? 0, max: 1 },
       { name: 'Net Margin', value: pctNm, raw: netMargin, max: 1 },
       { name: 'Gross Margin', value: pctGm, raw: grossMargin, max: 1 },
     ];
@@ -101,19 +177,20 @@ export class AssetService {
       ticker,
       name: row.name ?? ticker,
       sector: row.sector || '',
-      price: null,
+      price,
       change: null,
       marketCap,
       magicFormulaRank: null,
       earningsYield,
       returnOnCapital,
       roic,
+      roe,
       grossMargin,
       netMargin,
-      netDebtToEbitda,
-      dividendYield: null,
-      peRatio: null,
-      pbRatio: null,
+      netDebtToEbitda: netDebtToEbitda ?? 0,
+      dividendYield,
+      peRatio,
+      pbRatio,
       compositeScore: Math.round(compositeScore * 1000) / 1000,
       factors,
       priceHistory: null,
