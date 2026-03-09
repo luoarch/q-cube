@@ -44,7 +44,12 @@ class Settings(BaseSettings):
     cost_limit_usd_daily: float = 10.0
     retry_max_attempts: int = 3
 
-    model_config = {"env_prefix": "Q3_AI_"}
+    model_config = {
+        "env_prefix": "Q3_AI_",
+        "env_file": "../../.env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()
