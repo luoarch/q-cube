@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useIntelligence } from '../../../hooks/api/useIntelligence';
 
 import type { CompanyIntelligence } from '@q3/shared-contracts';
@@ -99,6 +101,42 @@ export function IntelligencePanel({ ticker }: { ticker: string }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
             {data.classification && <Badge text={data.classification} variant="gray" />}
             {data.scoreReliability && <ReliabilityDot level={data.scoreReliability} />}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <Link
+              href={`/compare?tickers=${ticker}`}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 12,
+                padding: '6px 8px',
+                background: 'rgba(148,163,184,0.08)',
+                border: '1px solid rgba(148,163,184,0.2)',
+                borderRadius: 6,
+                color: 'var(--text-primary, #e2e8f0)',
+                textDecoration: 'none',
+              }}
+            >
+              Comparar
+            </Link>
+            <Link
+              href={`/chat?ticker=${ticker}`}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 12,
+                padding: '6px 8px',
+                background: 'rgba(251,191,36,0.1)',
+                border: '1px solid rgba(251,191,36,0.3)',
+                borderRadius: 6,
+                color: 'var(--accent-gold, #fbbf24)',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Analisar com AI
+            </Link>
           </div>
 
           {/* Base metrics */}

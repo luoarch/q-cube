@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -604,11 +605,11 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 // ChatPanel with council-aware rendering
 // ---------------------------------------------------------------------------
 
-function ChatPanel({ sessionId, sessionMode }: { sessionId: string; sessionMode: ChatMode }) {
+function ChatPanel({ sessionId, sessionMode, initialTicker = '' }: { sessionId: string; sessionMode: ChatMode; initialTicker?: string }) {
   const { data: messages } = useChatMessages(sessionId);
   const sendMutation = useSendMessage(sessionId);
   const [input, setInput] = useState('');
-  const [tickers, setTickers] = useState('');
+  const [tickers, setTickers] = useState(initialTicker);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const needsTickers = sessionMode !== 'free_chat';
@@ -730,10 +731,14 @@ function ChatPanel({ sessionId, sessionMode }: { sessionId: string; sessionMode:
 // ---------------------------------------------------------------------------
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
+  const tickerParam = searchParams.get('ticker');
+
   const { data: sessions } = useChatSessions();
   const createSession = useCreateChatSession();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [selectedMode, setSelectedMode] = useState<ChatMode>('free_chat');
+  const [selectedMode, setSelectedMode] = useState<ChatMode>(tickerParam ? 'roundtable' : 'free_chat');
+  const [initialTicker] = useState(tickerParam ?? '');
 
   const activeSession = sessions?.find((s) => s.id === activeSessionId);
   const activeMode = activeSession?.mode ?? selectedMode;
@@ -837,7 +842,7 @@ export default function ChatPage() {
         {/* Main panel */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {activeSessionId ? (
-            <ChatPanel sessionId={activeSessionId} sessionMode={activeMode} />
+            <ChatPanel sessionId={activeSessionId} sessionMode={activeMode} initialTicker={initialTicker} />
           ) : (
             <div
               style={{

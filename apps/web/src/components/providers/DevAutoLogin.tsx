@@ -31,5 +31,6 @@ export function DevAutoLogin({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (!ready) return null;
+
   return <>{children}</>;
 }

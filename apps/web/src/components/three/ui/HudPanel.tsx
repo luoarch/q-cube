@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useAssetDetail } from '../../../hooks/api/useAssetDetail';
 import { useSceneStore } from '../../../stores/sceneStore';
 
@@ -79,6 +81,42 @@ export function HudPanel({ ticker }: { ticker: string }) {
                 value={`${(asset.compositeScore * 100).toFixed(0)}%`}
               />
             )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, marginTop: '1rem' }}>
+            <Link
+              href={`/intelligence/${ticker}`}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 12,
+                padding: '6px 8px',
+                background: 'rgba(148,163,184,0.08)',
+                border: '1px solid rgba(148,163,184,0.2)',
+                borderRadius: 6,
+                color: 'var(--text-primary, #e2e8f0)',
+                textDecoration: 'none',
+              }}
+            >
+              Inteligencia
+            </Link>
+            <Link
+              href={`/chat?ticker=${ticker}`}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 12,
+                padding: '6px 8px',
+                background: 'rgba(251,191,36,0.1)',
+                border: '1px solid rgba(251,191,36,0.3)',
+                borderRadius: 6,
+                color: 'var(--accent-gold, #fbbf24)',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Analisar com AI
+            </Link>
           </div>
 
           {asset.factors.length > 0 && (
