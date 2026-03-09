@@ -101,30 +101,38 @@ export class ComparisonService {
       }
     }
 
-    // Apply comparison rules
+    // Apply comparison rules — compute with issuer IDs, then convert to ticker keys
     const rules = COMPARISON_RULES;
     const metricResults = rules.map((rule) => {
-      const values: Record<string, number | null> = {};
+      // Compute values keyed by issuer ID internally
+      const rawValues: Record<string, number | null> = {};
       for (const iid of issuerIds) {
         const series = issuerMetrics[iid]?.[rule.metric] ?? [];
         if (rule.comparisonMode === 'latest') {
-          values[iid] = series.length > 0 ? series[series.length - 1]! : null;
+          rawValues[iid] = series.length > 0 ? series[series.length - 1]! : null;
         } else if (rule.comparisonMode === 'avg_3p') {
           const last3 = series.slice(-3);
-          values[iid] = last3.length > 0 ? last3.reduce((a, b) => a + b, 0) / last3.length : null;
+          rawValues[iid] = last3.length > 0 ? last3.reduce((a, b) => a + b, 0) / last3.length : null;
         } else if (rule.comparisonMode === 'stdev_3p') {
           const last3 = series.slice(-3);
           if (last3.length < 2) {
-            values[iid] = null;
+            rawValues[iid] = null;
           } else {
             const mean = last3.reduce((a, b) => a + b, 0) / last3.length;
             const variance = last3.reduce((a, b) => a + (b - mean) ** 2, 0) / (last3.length - 1);
-            values[iid] = Math.sqrt(variance);
+            rawValues[iid] = Math.sqrt(variance);
           }
         }
       }
 
-      const { winner, outcome, margin } = determineWinner(values, rule);
+      const { winner: winnerIid, outcome, margin } = determineWinner(rawValues, rule);
+
+      // Convert keys from issuer ID → ticker for frontend consumption
+      const values: Record<string, number | null> = {};
+      for (const iid of issuerIds) {
+        values[tickerMap[iid]!] = rawValues[iid] ?? null;
+      }
+      const winner = winnerIid ? (tickerMap[winnerIid] ?? null) : null;
 
       return {
         metric: rule.metric,
@@ -138,26 +146,30 @@ export class ComparisonService {
       };
     });
 
-    // Build summaries
-    const summaries = issuerIds.map((iid) => ({
-      issuerId: iid,
-      ticker: tickerMap[iid],
-      wins: metricResults.filter((m) => m.winner === iid && m.outcome === 'win').length,
-      ties: metricResults.filter((m) => m.outcome === 'tie').length,
-      losses: metricResults.filter(
-        (m) => m.outcome === 'win' && m.winner !== iid && m.winner !== null,
-      ).length,
-      inconclusive: metricResults.filter((m) => m.outcome === 'inconclusive').length,
-    }));
+    // Build summaries — keyed by ticker
+    const tickerList = issuerIds.map((iid) => tickerMap[iid]!);
+    const summaries = issuerIds.map((iid) => {
+      const ticker = tickerMap[iid]!;
+      return {
+        issuerId: iid,
+        ticker,
+        wins: metricResults.filter((m) => m.winner === ticker && m.outcome === 'win').length,
+        ties: metricResults.filter((m) => m.outcome === 'tie').length,
+        losses: metricResults.filter(
+          (m) => m.outcome === 'win' && m.winner !== ticker && m.winner !== null,
+        ).length,
+        inconclusive: metricResults.filter((m) => m.outcome === 'inconclusive').length,
+      };
+    });
 
     return comparisonMatrixSchema.parse({
       issuerIds,
-      tickers: issuerIds.map((iid) => tickerMap[iid]),
+      tickers: tickerList,
       metrics: metricResults,
       summaries,
       rulesVersion: 1,
       dataReliability: Object.fromEntries(
-        issuerIds.map((iid) => [iid, issuerMetrics[iid] ? 'medium' : 'unavailable']),
+        issuerIds.map((iid) => [tickerMap[iid]!, issuerMetrics[iid] ? 'medium' : 'unavailable']),
       ),
     });
   }

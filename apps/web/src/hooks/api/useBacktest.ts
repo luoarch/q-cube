@@ -16,6 +16,11 @@ export function useBacktestRun(runId: string | null) {
     queryKey: ['backtest-run', runId],
     queryFn: () => apiClient.get<BacktestRunResponse>(`/backtest-runs/${runId}`),
     enabled: !!runId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      // Poll every 3s while pending/running, stop once completed/failed
+      return status === 'pending' || status === 'running' ? 3000 : false;
+    },
   });
 }
 

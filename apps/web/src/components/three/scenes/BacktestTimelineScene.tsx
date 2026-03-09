@@ -1,6 +1,6 @@
 'use client';
 
-import { useStrategyRun } from '../../../hooks/api/useStrategyRun';
+import { useBacktestRun } from '../../../hooks/api/useBacktest';
 import { SceneCamera } from '../core/SceneCamera';
 import { SceneCanvas } from '../core/SceneCanvas';
 import { SceneControls } from '../core/SceneControls';
@@ -11,7 +11,7 @@ import { HudMetricsCard } from '../ui/HudMetricsCard';
 import { ScreenReaderDescription } from '../ui/ScreenReaderDescription';
 
 function TimelineInner({ runId }: { runId: string }) {
-  const { data: run } = useStrategyRun(runId);
+  const { data: run } = useBacktestRun(runId);
 
   if (!run?.result) return null;
 
@@ -27,7 +27,7 @@ function TimelineInner({ runId }: { runId: string }) {
 }
 
 export function BacktestTimelineScene({ runId }: { runId: string | null }) {
-  const { data: run, isLoading, error } = useStrategyRun(runId);
+  const { data: run, isLoading, error } = useBacktestRun(runId);
 
   if (!runId) {
     return (
