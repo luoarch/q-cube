@@ -1,6 +1,22 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-app = FastAPI(title="Q3 Quant Engine", version="0.1.0")
+from q3_quant_engine.queue_poller import start_poller
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
+    logger.info("Starting queue poller…")
+    start_poller()
+    yield
+    logger.info("Shutting down (poller thread is daemon, will exit with process)")
+
+
+app = FastAPI(title="Q3 Quant Engine", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")

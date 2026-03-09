@@ -27,6 +27,8 @@ from q3_fundamentals_engine.metrics.net_debt import NetDebtStrategy
 from q3_fundamentals_engine.metrics.roe import RoeStrategy
 from q3_fundamentals_engine.metrics.roic import RoicStrategy
 from q3_fundamentals_engine.metrics.cash_conversion import CashConversionStrategy
+from q3_fundamentals_engine.metrics.debt_to_ebitda import DebtToEbitdaStrategy
+from q3_fundamentals_engine.metrics.interest_coverage import InterestCoverageStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,8 @@ class MetricsEngine:
             NetMarginStrategy(),
             EvStrategy(),
             CashConversionStrategy(),
+            DebtToEbitdaStrategy(),
+            InterestCoverageStrategy(),
         ]
 
     # Strategies that depend on market_cap (market data, not CVM filings)
