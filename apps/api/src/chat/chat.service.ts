@@ -72,6 +72,7 @@ export class ChatService {
     return rows.map((row) =>
       chatMessageSchema.parse({
         ...row,
+        costUsd: row.costUsd != null ? Number(row.costUsd) : null,
         createdAt: row.createdAt.toISOString(),
       }),
     );
@@ -112,6 +113,7 @@ export class ChatService {
     const row = rows[0]!;
     return chatMessageSchema.parse({
       ...row,
+      costUsd: row.costUsd != null ? Number(row.costUsd) : null,
       createdAt: row.createdAt.toISOString(),
     });
   }

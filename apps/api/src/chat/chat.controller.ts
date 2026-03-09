@@ -167,35 +167,47 @@ export class ChatController {
 
       const councilResult = (await res.json()) as Record<string, unknown>;
 
-      // Persist each agent opinion as a separate message
-      const opinions = (councilResult.opinions ?? []) as Array<{
-        agentId?: string;
-        verdict?: string;
-        thesis?: string;
-        confidence?: number;
-        modelUsed?: string;
-      }>;
+      // AI assistant returns snake_case; support both conventions
+      const opinions = (councilResult.opinions ?? []) as Array<Record<string, unknown>>;
 
-      for (const opinion of opinions) {
+      for (const op of opinions) {
+        const agentId = (op.agent_id ?? op.agentId) as string | undefined;
+        const verdict = (op.verdict) as string | undefined;
+        const confidence = (op.confidence) as number | undefined;
+        const thesis = (op.thesis) as string | undefined;
+        const modelUsed = (op.model_used ?? op.modelUsed) as string | undefined;
+        const providerUsed = (op.provider_used ?? op.providerUsed) as string | undefined;
+        const tokensUsed = (op.tokens_used ?? op.tokensUsed) as number | undefined;
+        const costUsd = (op.cost_usd ?? op.costUsd) as number | undefined;
+
+        const agentLabel = agentId ? agentId.charAt(0).toUpperCase() + agentId.slice(1) : 'Agent';
         const agentContent = [
-          `**${opinion.agentId}** — ${opinion.verdict} (confianca: ${opinion.confidence}%)`,
+          `**${agentLabel}** — ${verdict} (confianca: ${confidence}%)`,
           '',
-          opinion.thesis ?? '',
+          thesis ?? '',
         ].join('\n');
 
         await this.chatService.addMessage(sessionId, 'agent', agentContent, {
-          ...(opinion.agentId ? { agentId: opinion.agentId } : {}),
-          ...(opinion.modelUsed ? { modelUsed: opinion.modelUsed } : {}),
+          ...(agentId ? { agentId } : {}),
+          ...(modelUsed ? { modelUsed } : {}),
+          ...(providerUsed ? { providerUsed } : {}),
+          ...(tokensUsed ? { tokensUsed } : {}),
+          ...(costUsd ? { costUsd } : {}),
         });
       }
 
-      // Persist moderator synthesis
-      const synthesis = councilResult.moderator_synthesis as {
-        overallAssessment?: string;
-        overall_assessment?: string;
-      } | undefined;
+      // Persist full council result as a system message for UI rendering
+      await this.chatService.addMessage(
+        sessionId,
+        'system',
+        JSON.stringify(councilResult),
+      );
+
+      // Persist moderator synthesis as assistant message
+      const synthesis = (councilResult.moderator_synthesis ?? councilResult.moderatorSynthesis) as
+        Record<string, unknown> | undefined;
       const disclaimer = (councilResult.disclaimer as string) ?? '';
-      const synthText = synthesis?.overallAssessment ?? synthesis?.overall_assessment ?? '';
+      const synthText = (synthesis?.overall_assessment ?? synthesis?.overallAssessment ?? '') as string;
 
       const assistantMsg = await this.chatService.addMessage(
         sessionId,

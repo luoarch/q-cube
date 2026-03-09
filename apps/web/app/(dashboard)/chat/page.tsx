@@ -496,22 +496,94 @@ function CouncilResultPanel({ data }: { data: CouncilData }) {
 // Parse council data from assistant messages
 // ---------------------------------------------------------------------------
 
+// Helper to get a value from an object that may use snake_case or camelCase keys
+function sc<T>(obj: Record<string, unknown>, camel: string, snake: string): T | undefined {
+  return (obj[camel] ?? obj[snake]) as T | undefined;
+}
+
+function normalizeOpinion(op: Record<string, unknown>): AgentOpinion {
+  return {
+    agentId: sc<string>(op, 'agentId', 'agent_id') ?? 'unknown',
+    verdict: (op.verdict as string) ?? 'watch',
+    confidence: (op.confidence as number) ?? 50,
+    dataReliability: sc<string>(op, 'dataReliability', 'data_reliability'),
+    thesis: (op.thesis as string) ?? '',
+    reasonsFor: sc<string[]>(op, 'reasonsFor', 'reasons_for') ?? [],
+    reasonsAgainst: sc<string[]>(op, 'reasonsAgainst', 'reasons_against') ?? [],
+    keyMetricsUsed: sc<string[]>(op, 'keyMetricsUsed', 'key_metrics_used') ?? [],
+    hardRejectsTriggered: sc<string[]>(op, 'hardRejectsTriggered', 'hard_rejects_triggered') ?? [],
+    unknowns: (op.unknowns as string[]) ?? [],
+    whatWouldChangeMyMind: sc<string[]>(op, 'whatWouldChangeMyMind', 'what_would_change_my_mind') ?? [],
+    investorFit: sc<string[]>(op, 'investorFit', 'investor_fit') ?? [],
+  };
+}
+
 function tryParseCouncilData(messages: ChatMessage[]): CouncilData | null {
-  // Look for agent-role messages + assistant synthesis to reconstruct council data
+  // First, try to find a system message with the full council result JSON
+  const systemMsg = messages.find((m) => m.role === 'system' && m.content.startsWith('{'));
+  if (systemMsg) {
+    try {
+      const raw = JSON.parse(systemMsg.content) as Record<string, unknown>;
+      const rawOpinions = (raw.opinions ?? []) as Record<string, unknown>[];
+      const opinions = rawOpinions.map(normalizeOpinion);
+
+      // Scoreboard — from response or build from opinions
+      const rawScoreboard = (sc<Record<string, unknown>>(raw, 'scoreboard', 'scoreboard'));
+      const scoreboard = rawScoreboard ? {
+        entries: ((rawScoreboard.entries ?? []) as Record<string, unknown>[]).map((e) => ({
+          agentId: sc<string>(e, 'agentId', 'agent_id') ?? '',
+          verdict: (e.verdict as string) ?? 'watch',
+          confidence: (e.confidence as number) ?? 50,
+        })),
+        consensus: (rawScoreboard.consensus as string) ?? null,
+        consensusStrength: sc<number>(rawScoreboard, 'consensusStrength', 'consensus_strength') ?? null,
+      } : {
+        entries: opinions.map((o) => ({ agentId: o.agentId, verdict: o.verdict, confidence: o.confidence })),
+        consensus: null,
+        consensusStrength: null,
+      };
+
+      // Conflict matrix
+      const rawConflicts = sc<Record<string, unknown>[]>(raw, 'conflictMatrix', 'conflict_matrix') ?? [];
+      const conflictMatrix = rawConflicts.map((c) => ({
+        agent1: (c.agent1 as string) ?? '',
+        agent2: (c.agent2 as string) ?? '',
+        topic: (c.topic as string) ?? 'verdict',
+        agent1Position: sc<string>(c, 'agent1Position', 'agent1_position') ?? '',
+        agent2Position: sc<string>(c, 'agent2Position', 'agent2_position') ?? '',
+      }));
+
+      // Moderator synthesis
+      const rawSynth = sc<Record<string, unknown>>(raw, 'moderatorSynthesis', 'moderator_synthesis');
+      const moderatorSynthesis = rawSynth ? {
+        convergences: (rawSynth.convergences as string[]) ?? [],
+        divergences: (rawSynth.divergences as string[]) ?? [],
+        biggestRisk: sc<string>(rawSynth, 'biggestRisk', 'biggest_risk') ?? '',
+        entryConditions: sc<string[]>(rawSynth, 'entryConditions', 'entry_conditions') ?? [],
+        exitConditions: sc<string[]>(rawSynth, 'exitConditions', 'exit_conditions') ?? [],
+        overallAssessment: sc<string>(rawSynth, 'overallAssessment', 'overall_assessment') ?? '',
+      } : undefined;
+
+      // Debate log
+      const rawDebate = sc<Record<string, unknown>[]>(raw, 'debateLog', 'debate_log') ?? [];
+      const debateLog = rawDebate.map((d) => ({
+        roundNumber: sc<number>(d, 'roundNumber', 'round_number') ?? 0,
+        agentId: sc<string>(d, 'agentId', 'agent_id') ?? '',
+        content: (d.content as string) ?? '',
+        targetAgentId: sc<string>(d, 'targetAgentId', 'target_agent_id') ?? null,
+      }));
+
+      return { opinions, scoreboard, conflictMatrix, moderatorSynthesis, debateLog };
+    } catch {
+      // Fall through to agent-message parsing
+    }
+  }
+
+  // Fallback: reconstruct from agent-role messages
   const agentMessages = messages.filter((m) => m.role === 'agent' && m.agentId);
   if (agentMessages.length === 0) return null;
 
-  // Build opinions from agent messages
   const opinions: AgentOpinion[] = agentMessages.map((m) => {
-    // Try parsing structured JSON from message content, or build from text
-    try {
-      const parsed = JSON.parse(m.content);
-      if (parsed.verdict) return parsed as AgentOpinion;
-    } catch {
-      // Not JSON — build from text
-    }
-
-    // Parse text-format agent messages: "**agentId** — verdict (confianca: N%)\nthesis"
     const lines = m.content.split('\n');
     const headerMatch = lines[0]?.match(/\*\*(.+?)\*\*\s*—\s*(\w+)\s*\(confianca:\s*(\d+)%\)/);
     return {
@@ -529,14 +601,7 @@ function tryParseCouncilData(messages: ChatMessage[]): CouncilData | null {
     };
   });
 
-  // Build scoreboard from opinions
-  const entries: ScoreboardEntry[] = opinions.map((o) => ({
-    agentId: o.agentId,
-    verdict: o.verdict,
-    confidence: o.confidence,
-  }));
-
-  // Detect conflicts
+  const entries = opinions.map((o) => ({ agentId: o.agentId, verdict: o.verdict, confidence: o.confidence }));
   const conflicts: ConflictEntry[] = [];
   for (let i = 0; i < opinions.length; i++) {
     for (let j = i + 1; j < opinions.length; j++) {
@@ -544,9 +609,7 @@ function tryParseCouncilData(messages: ChatMessage[]): CouncilData | null {
       const b = opinions[j]!;
       if (a.verdict !== b.verdict) {
         conflicts.push({
-          agent1: a.agentId,
-          agent2: b.agentId,
-          topic: 'verdict',
+          agent1: a.agentId, agent2: b.agentId, topic: 'verdict',
           agent1Position: `${VERDICT_LABELS[a.verdict] ?? a.verdict} (${a.confidence}%)`,
           agent2Position: `${VERDICT_LABELS[b.verdict] ?? b.verdict} (${b.confidence}%)`,
         });
@@ -554,11 +617,7 @@ function tryParseCouncilData(messages: ChatMessage[]): CouncilData | null {
     }
   }
 
-  return {
-    opinions,
-    scoreboard: { entries, consensus: null, consensusStrength: null },
-    conflictMatrix: conflicts,
-  };
+  return { opinions, scoreboard: { entries, consensus: null, consensusStrength: null }, conflictMatrix: conflicts };
 }
 
 // ---------------------------------------------------------------------------
@@ -568,9 +627,10 @@ function tryParseCouncilData(messages: ChatMessage[]): CouncilData | null {
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user';
   const isAgent = msg.role === 'agent';
+  const isSystem = msg.role === 'system';
 
-  // Don't render individual agent messages — they'll be shown in the council panel
-  if (isAgent) return null;
+  // Don't render agent messages (shown in council panel) or system messages (raw JSON)
+  if (isAgent || isSystem) return null;
 
   return (
     <div
