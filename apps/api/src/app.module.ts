@@ -21,6 +21,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { RefinerModule } from './refiner/refiner.module.js';
 import { StrategyModule } from './strategy/strategy.module.js';
 import { UniverseModule } from './universe/universe.module.js';
+import { UserContextModule } from './user-context/user-context.module.js';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { UniverseModule } from './universe/universe.module.js';
     ComparisonModule,
     ChatModule,
     AIModule,
+    UserContextModule,
   ],
   providers: [
     {

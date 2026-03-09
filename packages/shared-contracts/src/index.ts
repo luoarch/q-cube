@@ -26,3 +26,4 @@ export * from './domains/intelligence.js';
 export * from './domains/council.js';
 export * from './domains/chat.js';
 export * from './domains/user-context.js';
+export * from './domains/source.js';

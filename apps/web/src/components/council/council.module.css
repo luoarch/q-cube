@@ -1,0 +1,337 @@
+/* --------------------------------------------------------------------------- */
+/* Council components — dark-theme financial analytics dashboard              */
+/* Uses CSS custom properties from globals.css                                */
+/* --------------------------------------------------------------------------- */
+
+/* Verdict chip */
+.verdictChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--verdict-color) 13%, transparent);
+  color: var(--verdict-color);
+  border: 1px solid color-mix(in srgb, var(--verdict-color) 27%, transparent);
+  white-space: nowrap;
+}
+
+.verdictConfidence {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* Scoreboard */
+.scoreboard {
+  padding: 0.75rem;
+  background: rgba(148, 163, 184, 0.05);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.scoreboardTitle {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--accent-gold, #fbbf24);
+}
+
+.scoreboardEntries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scoreboardEntry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scoreboardAgentLabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.scoreboardConsensus {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Agent card */
+.agentCard {
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--verdict-color) 20%, transparent);
+  background: rgba(148, 163, 184, 0.04);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.agentCard:hover {
+  border-color: color-mix(in srgb, var(--verdict-color) 40%, transparent);
+}
+
+.agentCardHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 44px;
+}
+
+.agentCardHeader:focus-visible {
+  outline: 2px solid var(--accent-gold, #fbbf24);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.agentCardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agentCardName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agentCardToggle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.agentCardToggleOpen {
+  transform: rotate(180deg);
+}
+
+.agentCardBody {
+  padding: 0 0.75rem 0.75rem;
+  font-size: 13px;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentCardBody {
+    animation: none;
+  }
+  .agentCardToggle {
+    transition: none;
+  }
+  .agentCard {
+    transition: none;
+  }
+}
+
+.thesis {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+/* Section lists */
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.sectionLabelFor {
+  color: #22c55e;
+}
+
+.sectionLabelAgainst {
+  color: #ef4444;
+}
+
+.sectionLabelGold {
+  color: var(--accent-gold, #fbbf24);
+}
+
+.sectionLabelMuted {
+  color: var(--text-secondary);
+}
+
+.sectionList {
+  margin: 0 0 6px;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.sectionList li {
+  margin-bottom: 2px;
+}
+
+.rejectItem {
+  color: #ef4444;
+}
+
+/* Badge row */
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+}
+
+.badgeGold {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--accent-gold, #fbbf24);
+}
+
+/* Conflict matrix */
+.conflictPanel {
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.04);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.conflictTitle {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ef4444;
+}
+
+.conflictRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.conflictRow:last-child {
+  margin-bottom: 0;
+}
+
+.conflictAgent {
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.conflictVs {
+  color: var(--text-secondary);
+}
+
+.conflictPosition {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* Debate timeline */
+.debatePanel {
+  padding: 0.75rem;
+  background: rgba(148, 163, 184, 0.04);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.debateTitle {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--accent-gold, #fbbf24);
+}
+
+.debateRound {
+  margin-bottom: 10px;
+}
+
+.debateRoundLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.debateEntry {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(148, 163, 184, 0.2);
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.debateEntryAgent {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--accent-gold, #fbbf24);
+}
+
+.debateEntryTarget {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.debateEntryContent {
+  color: var(--text-primary, #e2e8f0);
+  line-height: 1.5;
+}
+
+/* Synthesis */
+.synthesisPanel {
+  padding: 0.75rem;
+  background: rgba(251, 191, 36, 0.05);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.synthesisTitle {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--accent-gold, #fbbf24);
+}
+
+.synthesisText {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.synthesisRisk {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* Council result panel container */
+.councilResultPanel {
+  margin-bottom: 12px;
+}

@@ -58,6 +58,9 @@ class AssetAnalysisPacket:
     data_completeness: DataCompleteness | None = None
     score_reliability: str = "unavailable"
 
+    # RAG enrichment (from embeddings store)
+    rag_context: list[str] = field(default_factory=list)
+
     # Metadata
     as_of_date: str = ""
     source_refs: list[str] = field(default_factory=list)
@@ -82,4 +85,5 @@ class AssetAnalysisPacket:
             "riskFlags": self.risk_flags,
             "scoreReliability": self.score_reliability,
             "asOfDate": self.as_of_date,
+            "ragContext": self.rag_context if self.rag_context else None,
         }
