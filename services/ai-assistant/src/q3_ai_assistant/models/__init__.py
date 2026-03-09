@@ -1,4 +1,4 @@
-from q3_ai_assistant.models.entities import (
+from q3_shared_models.entities import (
     AIExplanation,
     AIModule,
     AIResearchNote,

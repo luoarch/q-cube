@@ -6,9 +6,8 @@ from sqlalchemy import select
 
 from q3_quant_engine.celery_app import celery_app
 from q3_quant_engine.db.session import SessionLocal
-from q3_quant_engine.models.entities import Job, RunStatus, StrategyRun
+from q3_shared_models.entities import BacktestRun, Job, RunStatus, StrategyRun
 from q3_quant_engine.strategies.ranking import run_strategy
-from q3_shared_models.entities import BacktestRun
 
 logger = logging.getLogger(__name__)
 

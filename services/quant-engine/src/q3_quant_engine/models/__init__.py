@@ -1,3 +1,8 @@
-from q3_quant_engine.models.entities import Job, JobKind, RunStatus, StrategyRun
+"""Re-exports from shared-models-py — SSOT for all SQLAlchemy models."""
 
-__all__ = ["Job", "JobKind", "RunStatus", "StrategyRun"]
+from q3_shared_models.entities import (  # noqa: F401
+    Job,
+    JobKind,
+    RunStatus,
+    StrategyRun,
+)

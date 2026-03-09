@@ -8,7 +8,7 @@ from sqlalchemy import engine_from_config, pool
 
 from q3_quant_engine.db.base import Base
 from q3_quant_engine.db.session import ensure_psycopg_url
-from q3_quant_engine.models import entities as _entities  # noqa: F401
+from q3_shared_models import entities as _entities  # noqa: F401
 
 config = context.config
 

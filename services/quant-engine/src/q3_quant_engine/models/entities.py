@@ -1,4 +1,6 @@
-from q3_shared_models.entities import (
+"""Re-exports from shared-models-py — SSOT for all SQLAlchemy models."""
+
+from q3_shared_models.entities import (  # noqa: F401
     Asset,
     BacktestRun,
     BatchStatus,
@@ -27,33 +29,3 @@ from q3_shared_models.entities import (
     Tenant,
     User,
 )
-
-__all__ = [
-    "Asset",
-    "BacktestRun",
-    "BatchStatus",
-    "ComputedMetric",
-    "Filing",
-    "FilingStatus",
-    "FilingType",
-    "FinancialStatement",
-    "Issuer",
-    "Job",
-    "JobKind",
-    "Membership",
-    "MembershipRole",
-    "PeriodType",
-    "RawSourceBatch",
-    "RawSourceFile",
-    "RestatementEvent",
-    "RunStatus",
-    "ScopeType",
-    "Security",
-    "SourceProvider",
-    "StatementLine",
-    "StatementType",
-    "StrategyRun",
-    "StrategyType",
-    "Tenant",
-    "User",
-]

@@ -2,9 +2,9 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pgvector.sqlalchemy import HALFVEC as HalfVec
 
@@ -113,6 +113,9 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -448,6 +451,44 @@ class RefinementResultModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class ChatMode(str, enum.Enum):
+    free_chat = "free_chat"
+    agent_solo = "agent_solo"
+    roundtable = "roundtable"
+    debate = "debate"
+    comparison = "comparison"
+
+
+class ChatRole(str, enum.Enum):
+    user = "user"
+    assistant = "assistant"
+    system = "system"
+    tool = "tool"
+    agent = "agent"
+
+
+class AgentId(str, enum.Enum):
+    barsi = "barsi"
+    graham = "graham"
+    greenblatt = "greenblatt"
+    buffett = "buffett"
+    moderator = "moderator"
+
+
+class AgentVerdict(str, enum.Enum):
+    buy = "buy"
+    watch = "watch"
+    avoid = "avoid"
+    insufficient_data = "insufficient_data"
+
+
+class CouncilMode(str, enum.Enum):
+    solo = "solo"
+    roundtable = "roundtable"
+    debate = "debate"
+    comparison = "comparison"
+
+
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
@@ -463,7 +504,9 @@ class ChatSession(Base):
         nullable=False,
     )
     title: Mapped[str | None] = mapped_column(Text)
-    mode: Mapped[str] = mapped_column(String, nullable=False, server_default="free_chat")
+    mode: Mapped[ChatMode] = mapped_column(
+        Enum(ChatMode, name="chat_mode"), nullable=False, server_default="free_chat"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -477,16 +520,16 @@ class ChatMessage(Base):
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    role: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[ChatRole] = mapped_column(Enum(ChatRole, name="chat_role"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    agent_id: Mapped[str | None] = mapped_column(String)
+    agent_id: Mapped[str | None] = mapped_column(String(20))
     tool_calls_json: Mapped[dict | None] = mapped_column(JSONB)
     tokens_used: Mapped[int | None] = mapped_column(Integer)
     cost_usd: Mapped[float | None] = mapped_column(Numeric)
-    provider_used: Mapped[str | None] = mapped_column(String)
-    model_used: Mapped[str | None] = mapped_column(String)
+    provider_used: Mapped[str | None] = mapped_column(String(20))
+    model_used: Mapped[str | None] = mapped_column(String(50))
     fallback_level: Mapped[int | None] = mapped_column(Integer)
-    input_hash: Mapped[str | None] = mapped_column(String)
+    input_hash: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -503,11 +546,11 @@ class CouncilSession(Base):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
-    mode: Mapped[str] = mapped_column(String, nullable=False)
+    mode: Mapped[CouncilMode] = mapped_column(Enum(CouncilMode, name="council_mode"), nullable=False)
     asset_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
     agent_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default="pending")
-    input_hash: Mapped[str | None] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
+    input_hash: Mapped[str | None] = mapped_column(String(64))
     audit_trail_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -521,15 +564,17 @@ class CouncilOpinion(Base):
         ForeignKey("council_sessions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    agent_id: Mapped[str] = mapped_column(String, nullable=False)
-    verdict: Mapped[str] = mapped_column(String, nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    verdict: Mapped[AgentVerdict] = mapped_column(
+        Enum(AgentVerdict, name="agent_verdict"), nullable=False
+    )
     confidence: Mapped[int] = mapped_column(Integer, nullable=False)
     opinion_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     hard_rejects_json: Mapped[dict | None] = mapped_column(JSONB)
     profile_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     prompt_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
-    provider_used: Mapped[str | None] = mapped_column(String)
-    model_used: Mapped[str | None] = mapped_column(String)
+    provider_used: Mapped[str | None] = mapped_column(String(20))
+    model_used: Mapped[str | None] = mapped_column(String(50))
     fallback_level: Mapped[int | None] = mapped_column(Integer)
     tokens_used: Mapped[int | None] = mapped_column(Integer)
     cost_usd: Mapped[float | None] = mapped_column(Numeric)
@@ -546,11 +591,11 @@ class CouncilDebate(Base):
         nullable=False,
     )
     round_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    agent_id: Mapped[str] = mapped_column(String, nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    target_agent_id: Mapped[str | None] = mapped_column(String)
-    provider_used: Mapped[str | None] = mapped_column(String)
-    model_used: Mapped[str | None] = mapped_column(String)
+    target_agent_id: Mapped[str | None] = mapped_column(String(20))
+    provider_used: Mapped[str | None] = mapped_column(String(20))
+    model_used: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -633,3 +678,132 @@ class MarketSnapshot(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     raw_json: Mapped[dict | None] = mapped_column(JSONB)
+
+
+# ---------------------------------------------------------------------------
+# AI Assistant enums + tables
+# ---------------------------------------------------------------------------
+
+
+class AIModule(str, enum.Enum):
+    ranking_explainer = "ranking_explainer"
+    backtest_narrator = "backtest_narrator"
+    metric_explainer = "metric_explainer"
+
+
+class ReviewStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    expired = "expired"
+
+
+class ConfidenceLevel(str, enum.Enum):
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+
+class ExplanationType(str, enum.Enum):
+    position = "position"
+    sector = "sector"
+    outlier = "outlier"
+    metric = "metric"
+
+
+class NoteType(str, enum.Enum):
+    summary = "summary"
+    concern = "concern"
+    highlight = "highlight"
+    recommendation = "recommendation"
+
+
+class AISuggestion(Base):
+    __tablename__ = "ai_suggestions"
+    __table_args__ = (
+        UniqueConstraint(
+            "module", "trigger_entity_id", "input_hash", "prompt_version",
+            name="uq_ai_suggestions_dedup",
+        ),
+        Index("idx_ai_suggestions_tenant_module", "tenant_id", "module"),
+        Index("idx_ai_suggestions_trigger", "trigger_entity_id"),
+        Index("idx_ai_suggestions_review", "review_status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    module: Mapped[AIModule] = mapped_column(Enum(AIModule, name="ai_module"), nullable=False)
+    trigger_event: Mapped[str] = mapped_column(String(100), nullable=False)
+    trigger_entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    output_schema_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    input_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    output_text: Mapped[str] = mapped_column(Text, nullable=False)
+    structured_output: Mapped[dict | None] = mapped_column(JSONB)
+    confidence: Mapped[ConfidenceLevel] = mapped_column(
+        Enum(ConfidenceLevel, name="confidence_level"), nullable=False
+    )
+    model_used: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    tokens_used: Mapped[int] = mapped_column(nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(nullable=False)
+    completion_tokens: Mapped[int] = mapped_column(nullable=False)
+    cost_usd: Mapped[float] = mapped_column(Numeric, nullable=False, server_default="0")
+    review_status: Mapped[ReviewStatus] = mapped_column(
+        Enum(ReviewStatus, name="review_status"), nullable=False, server_default="pending"
+    )
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    explanations: Mapped[list["AIExplanation"]] = relationship(
+        back_populates="suggestion", cascade="all, delete-orphan"
+    )
+    research_notes: Mapped[list["AIResearchNote"]] = relationship(
+        back_populates="suggestion", cascade="all, delete-orphan"
+    )
+
+
+class AIExplanation(Base):
+    __tablename__ = "ai_explanations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    suggestion_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ai_suggestions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    explanation_type: Mapped[ExplanationType] = mapped_column(
+        Enum(ExplanationType, name="explanation_type"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    suggestion: Mapped[AISuggestion] = relationship(back_populates="explanations")
+
+
+class AIResearchNote(Base):
+    __tablename__ = "ai_research_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    suggestion_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ai_suggestions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    note_type: Mapped[NoteType] = mapped_column(
+        Enum(NoteType, name="note_type"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    suggestion: Mapped[AISuggestion] = relationship(back_populates="research_notes")
