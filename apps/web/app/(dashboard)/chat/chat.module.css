@@ -259,6 +259,94 @@
   margin-top: 4px;
 }
 
+/* Typing indicator */
+.typingIndicator {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+
+.typingBubble {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.typingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary, #94a3b8);
+  animation: typingPulse 1.4s ease-in-out infinite;
+}
+
+.typingDot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typingDot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingPulse {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
+}
+
+/* Message timestamp */
+.messageTime {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Loading skeletons */
+.skeletonPulse {
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+.sessionSkeleton {
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.messageSkeleton {
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.06);
+  height: 40px;
+}
+
+.messageSkeletonShort {
+  composes: messageSkeleton;
+  width: 45%;
+}
+
+.messageSkeletonMedium {
+  composes: messageSkeleton;
+  width: 65%;
+}
+
+.messageSkeletonLong {
+  composes: messageSkeleton;
+  width: 75%;
+  height: 56px;
+}
+
+.messageSkeletonRight {
+  margin-left: auto;
+}
+
 /* Accessibility */
 .srOnly {
   position: absolute;
@@ -297,5 +385,15 @@
   .newSessionButton,
   .sendButton {
     transition: none;
+  }
+
+  .typingDot {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  .skeletonPulse {
+    animation: none;
+    opacity: 0.3;
   }
 }

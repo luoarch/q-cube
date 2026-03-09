@@ -22,6 +22,23 @@ import type { ChatMessage, ChatMode } from '@q3/shared-contracts';
 import styles from './chat.module.css';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffSec = Math.floor((now - then) / 1000);
+
+  if (diffSec < 60) return 'agora';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}min`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+// ---------------------------------------------------------------------------
 // Message bubble
 // ---------------------------------------------------------------------------
 
@@ -35,11 +52,53 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
     <div className={isUser ? styles.messageBubbleRight : styles.messageBubbleLeft}>
       <div className={isUser ? styles.messageUser : styles.messageAssistant}>
         <div className={styles.messageContent}>{msg.content}</div>
-        {msg.modelUsed && (
-          <div className={styles.messageModel}>{msg.modelUsed}</div>
-        )}
+        <div className={styles.messageTime}>
+          {msg.modelUsed && <>{msg.modelUsed} · </>}
+          {formatRelativeTime(msg.createdAt)}
+        </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Typing indicator
+// ---------------------------------------------------------------------------
+
+function TypingIndicator() {
+  return (
+    <div className={styles.typingIndicator}>
+      <div className={styles.typingBubble}>
+        <span className={styles.typingDot} />
+        <span className={styles.typingDot} />
+        <span className={styles.typingDot} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeletons
+// ---------------------------------------------------------------------------
+
+function SessionListSkeleton() {
+  return (
+    <>
+      {[1, 2, 3].map((i) => (
+        <div key={i} className={`${styles.sessionSkeleton} ${styles.skeletonPulse}`} />
+      ))}
+    </>
+  );
+}
+
+function MessagesSkeleton() {
+  return (
+    <>
+      <div className={`${styles.messageSkeletonMedium} ${styles.skeletonPulse}`} />
+      <div className={`${styles.messageSkeletonShort} ${styles.messageSkeletonRight} ${styles.skeletonPulse}`} />
+      <div className={`${styles.messageSkeletonLong} ${styles.skeletonPulse}`} />
+      <div className={`${styles.messageSkeletonShort} ${styles.messageSkeletonRight} ${styles.skeletonPulse}`} />
+    </>
   );
 }
 
@@ -92,7 +151,12 @@ function ChatPanel({
       {/* Messages */}
       <div className={styles.messagesArea}>
         {councilData && <CouncilResultPanel data={councilData} />}
-        {messages?.map((m) => <MessageBubble key={m.id} msg={m} />)}
+        {!messages ? (
+          <MessagesSkeleton />
+        ) : (
+          messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+        )}
+        {sendMutation.isPending && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -205,18 +269,22 @@ export function ChatPageInner() {
             </button>
           </div>
 
-          {sessions?.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSessionId(s.id)}
-              className={`${styles.sessionButton} ${s.id === activeSessionId ? styles.sessionButtonActive : ''}`}
-            >
-              <div className={styles.sessionTitle}>{s.title ?? MODE_LABELS[s.mode]}</div>
-              <div className={styles.sessionDate}>
-                {new Date(s.createdAt).toLocaleDateString('pt-BR')}
-              </div>
-            </button>
-          ))}
+          {!sessions ? (
+            <SessionListSkeleton />
+          ) : (
+            sessions.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setActiveSessionId(s.id)}
+                className={`${styles.sessionButton} ${s.id === activeSessionId ? styles.sessionButtonActive : ''}`}
+              >
+                <div className={styles.sessionTitle}>{s.title ?? MODE_LABELS[s.mode]}</div>
+                <div className={styles.sessionDate}>
+                  {new Date(s.createdAt).toLocaleDateString('pt-BR')}
+                </div>
+              </button>
+            ))
+          )}
         </aside>
 
         {/* Main panel */}
