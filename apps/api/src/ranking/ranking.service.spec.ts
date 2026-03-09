@@ -11,18 +11,18 @@ function createMockCache() {
 }
 
 /**
- * Creates a mock DB that returns queryResults in order of .select() calls.
- * Each result is returned as a thenable that also has chainable methods,
- * so it works whether the query chain ends at .innerJoin(), .orderBy(), etc.
+ * Creates a mock DB that returns:
+ * - executeResult via db.execute() (used for the main v_financial_statements_compat query)
+ * - selectResults in order of db.select() calls (used for buildPriceMap, buildSectorMap)
  */
-function createMockDb(queryResults: any[][]) {
-  let callIndex = 0;
+function createMockDb(executeResult: any[], selectResults: any[][] = [[], []]) {
+  let selectIndex = 0;
   return {
+    execute: vi.fn().mockResolvedValue({ rows: executeResult }),
     select: vi.fn().mockImplementation(() => {
-      const idx = callIndex++;
-      const result = queryResults[idx] ?? [];
+      const idx = selectIndex++;
+      const result = selectResults[idx] ?? [];
 
-      // Create a thenable proxy that chains and ultimately resolves to data
       function makeChainable(data: any[]): any {
         const handler: ProxyHandler<any> = {
           get(_target, prop) {
@@ -32,7 +32,6 @@ function createMockDb(queryResults: any[][]) {
             if (prop === Symbol.iterator) {
               return () => data[Symbol.iterator]();
             }
-            // Any method call returns another chainable
             return vi.fn().mockReturnValue(new Proxy({}, handler));
           },
         };
@@ -61,8 +60,7 @@ describe('RankingService', () => {
   });
 
   it('should return empty array when no assets exist', async () => {
-    // 3 queries: assets+fs, market_snapshots+securities, securities+issuers
-    const db = createMockDb([[], [], []]);
+    const db = createMockDb([], [[], []]);
     const service = new RankingService(db as any, mockCache as any);
     const result = await service.getRanking('tenant-1');
     expect(result).toEqual([]);
@@ -72,42 +70,47 @@ describe('RankingService', () => {
   it('should compute magic formula ranks correctly', async () => {
     const assets = [
       {
-        assetId: '1',
         ticker: 'A',
         name: 'A Co',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '100',
-        enterpriseValue: '1000',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.15',
-        marketCap: '2000',
-        avgDailyVolume: '500000',
+        market_cap: '2000',
+        avg_daily_volume: '500000',
       },
       {
-        assetId: '2',
         ticker: 'B',
         name: 'B Co',
-        assetSector: 'Finance',
+        sector: 'Finance',
         ebit: '200',
-        enterpriseValue: '800',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.10',
-        marketCap: '3000',
-        avgDailyVolume: '1500000',
+        market_cap: '3000',
+        avg_daily_volume: '1500000',
       },
       {
-        assetId: '3',
         ticker: 'C',
         name: 'C Co',
-        assetSector: 'Energy',
+        sector: 'Energy',
         ebit: '50',
-        enterpriseValue: '2000',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.20',
-        marketCap: '1000',
-        avgDailyVolume: '50000',
+        market_cap: '1000',
+        avg_daily_volume: '50000',
       },
     ];
 
-    // Query order: 1) assets+fs, 2) market_snapshots (prices), 3) securities+issuers (sectors)
-    const db = createMockDb([assets, [], []]);
+    const db = createMockDb(assets, [[], []]);
     const service = new RankingService(db as any, mockCache as any);
     const result = await service.getRanking('tenant-1');
 
@@ -123,41 +126,47 @@ describe('RankingService', () => {
   it('should assign quality based on ROIC', async () => {
     const assets = [
       {
-        assetId: '1',
         ticker: 'HIGH',
         name: 'High',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '100',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.20',
-        marketCap: '1000',
-        avgDailyVolume: '500000',
+        market_cap: '1000',
+        avg_daily_volume: '500000',
       },
       {
-        assetId: '2',
         ticker: 'MED',
         name: 'Med',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '50',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.10',
-        marketCap: '1000',
-        avgDailyVolume: '500000',
+        market_cap: '1000',
+        avg_daily_volume: '500000',
       },
       {
-        assetId: '3',
         ticker: 'LOW',
         name: 'Low',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '10',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.05',
-        marketCap: '1000',
-        avgDailyVolume: '500000',
+        market_cap: '1000',
+        avg_daily_volume: '500000',
       },
     ];
 
-    const db = createMockDb([assets, [], []]);
+    const db = createMockDb(assets, [[], []]);
     const service = new RankingService(db as any, mockCache as any);
     const result = await service.getRanking('tenant-1');
 
@@ -173,41 +182,47 @@ describe('RankingService', () => {
   it('should assign liquidity based on avg daily volume', async () => {
     const assets = [
       {
-        assetId: '1',
         ticker: 'HLIQ',
         name: 'H',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '100',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.10',
-        marketCap: '1000',
-        avgDailyVolume: '2000000',
+        market_cap: '1000',
+        avg_daily_volume: '2000000',
       },
       {
-        assetId: '2',
         ticker: 'MLIQ',
         name: 'M',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '50',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.10',
-        marketCap: '1000',
-        avgDailyVolume: '500000',
+        market_cap: '1000',
+        avg_daily_volume: '500000',
       },
       {
-        assetId: '3',
         ticker: 'LLIQ',
         name: 'L',
-        assetSector: 'Tech',
+        sector: 'Tech',
         ebit: '10',
-        enterpriseValue: '500',
+        net_debt: '0',
+        ebitda: null,
+        net_working_capital: null,
+        fixed_assets: null,
         roic: '0.10',
-        marketCap: '1000',
-        avgDailyVolume: '50000',
+        market_cap: '1000',
+        avg_daily_volume: '50000',
       },
     ];
 
-    const db = createMockDb([assets, [], []]);
+    const db = createMockDb(assets, [[], []]);
     const service = new RankingService(db as any, mockCache as any);
     const result = await service.getRanking('tenant-1');
 
