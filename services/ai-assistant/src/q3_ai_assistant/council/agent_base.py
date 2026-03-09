@@ -49,6 +49,16 @@ class BaseCouncilAgent(ABC):
         cascade: CascadeRouter,
     ) -> AgentOpinion:
         """Template method: run the full analysis pipeline."""
+        from q3_ai_assistant.observability.tracing import trace_span
+
+        with trace_span("agent.analyze", agent_id=self.agent_id, ticker=packet.ticker):
+            return self._analyze_inner(packet, cascade)
+
+    def _analyze_inner(
+        self,
+        packet: AssetAnalysisPacket,
+        cascade: CascadeRouter,
+    ) -> AgentOpinion:
         # Step 1: Check hard rejects (deterministic)
         triggered_rejects = self._check_hard_rejects(packet)
 

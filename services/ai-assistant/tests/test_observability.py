@@ -114,3 +114,31 @@ class TestTraceSpan:
         with trace_span("op", trace_id="custom123") as span:
             pass
         assert span.trace_id == "custom123"
+
+
+class TestOtelIntegration:
+    def test_setup_tracing_creates_tracer(self):
+        from q3_ai_assistant.observability.tracing import get_tracer, setup_tracing
+        setup_tracing()
+        tracer = get_tracer()
+        assert tracer is not None
+
+    def test_otel_span_created_alongside_local_span(self):
+        """Verify that trace_span creates both OTel and local spans."""
+        from opentelemetry import trace as otel_trace
+
+        with trace_span("otel_test", ticker="WEGE3") as span:
+            otel_span = otel_trace.get_current_span()
+            assert otel_span is not None
+            assert otel_span.is_recording()
+        # Local span should have duration
+        assert span.duration_ms >= 0
+        assert span.attributes["ticker"] == "WEGE3"
+
+    def test_nested_spans(self):
+        """Verify nested trace_span calls produce correct parent-child."""
+        with trace_span("parent") as parent:
+            with trace_span("child", parent_span_id=parent.span_id) as child:
+                pass
+        assert child.parent_span_id == parent.span_id
+        assert child.trace_id == parent.trace_id

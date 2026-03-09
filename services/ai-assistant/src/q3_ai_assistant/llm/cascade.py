@@ -85,14 +85,25 @@ class CascadeRouter:
         *,
         validate_output: Callable[[LLMResponse], bool] | None = None,
     ) -> CascadeResult:
-        """Generate with automatic failover.
+        """Generate with automatic failover."""
+        from q3_ai_assistant.observability.tracing import trace_span
 
-        Args:
-            system_prompt: System prompt.
-            user_prompt: User prompt.
-            validate_output: Optional callable(LLMResponse) -> bool.
-                If provided and returns False, triggers soft failover.
-        """
+        with trace_span("llm.cascade", pool_size=len(self._pool)) as span:
+            result = self._generate_inner(system_prompt, user_prompt, validate_output=validate_output)
+            span.attributes["provider"] = result.provider_used
+            span.attributes["model"] = result.model_used
+            span.attributes["fallback_level"] = result.fallback_level
+            span.attributes["tokens"] = result.response.tokens_used
+            span.attributes["cost_usd"] = result.response.cost_usd
+            return result
+
+    def _generate_inner(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        validate_output: Callable[[LLMResponse], bool] | None = None,
+    ) -> CascadeResult:
         attempts: list[CascadeAttempt] = []
         last_error = ""
 

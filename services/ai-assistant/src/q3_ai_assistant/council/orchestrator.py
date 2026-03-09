@@ -63,55 +63,61 @@ class CouncilOrchestrator:
         packet: AssetAnalysisPacket,
     ) -> CouncilResult:
         """Single agent analysis."""
-        agent = create_agent(agent_id)
-        opinion = agent.analyze(packet, self._specialist_cascade)
+        from q3_ai_assistant.observability.tracing import trace_span
 
-        scoreboard = _build_scoreboard([opinion])
-        return CouncilResult(
-            session_id=str(uuid.uuid4()),
-            mode=CouncilMode.solo,
-            asset_ids=[packet.issuer_id],
-            opinions=[opinion],
-            scoreboard=scoreboard,
-            conflict_matrix=[],
-            moderator_synthesis=_empty_synthesis(),
-            debate_log=None,
-            disclaimer=DISCLAIMER,
-            audit_trail=_build_audit([opinion], packet),
-        )
+        with trace_span("council.solo", agent_id=agent_id, ticker=packet.ticker):
+            agent = create_agent(agent_id)
+            opinion = agent.analyze(packet, self._specialist_cascade)
+
+            scoreboard = _build_scoreboard([opinion])
+            return CouncilResult(
+                session_id=str(uuid.uuid4()),
+                mode=CouncilMode.solo,
+                asset_ids=[packet.issuer_id],
+                opinions=[opinion],
+                scoreboard=scoreboard,
+                conflict_matrix=[],
+                moderator_synthesis=_empty_synthesis(),
+                debate_log=None,
+                disclaimer=DISCLAIMER,
+                audit_trail=_build_audit([opinion], packet),
+            )
 
     def run_roundtable(
         self,
         packet: AssetAnalysisPacket,
     ) -> CouncilResult:
         """All 4 specialists + moderator synthesis."""
-        specialists = create_specialists()
+        from q3_ai_assistant.observability.tracing import trace_span
 
-        opinions = _parallel_analyze(specialists, packet, self._specialist_cascade)
+        with trace_span("council.roundtable", ticker=packet.ticker):
+            specialists = create_specialists()
 
-        # Run moderator synthesis
-        moderator = ModeratorAgent()
-        opinion_dicts = [_opinion_to_dict(o) for o in opinions]
-        moderator.build_synthesis_prompt(packet, opinion_dicts)
-        mod_opinion = moderator.analyze(packet, self._orchestrator_cascade)
-        opinions.append(mod_opinion)
+            opinions = _parallel_analyze(specialists, packet, self._specialist_cascade)
 
-        scoreboard = _build_scoreboard(opinions)
-        conflicts = _detect_conflicts(opinions)
-        synthesis = _extract_synthesis(mod_opinion)
+            # Run moderator synthesis
+            moderator = ModeratorAgent()
+            opinion_dicts = [_opinion_to_dict(o) for o in opinions]
+            moderator.build_synthesis_prompt(packet, opinion_dicts)
+            mod_opinion = moderator.analyze(packet, self._orchestrator_cascade)
+            opinions.append(mod_opinion)
 
-        return CouncilResult(
-            session_id=str(uuid.uuid4()),
-            mode=CouncilMode.roundtable,
-            asset_ids=[packet.issuer_id],
-            opinions=opinions,
-            scoreboard=scoreboard,
-            conflict_matrix=conflicts,
-            moderator_synthesis=synthesis,
-            debate_log=None,
-            disclaimer=DISCLAIMER,
-            audit_trail=_build_audit(opinions, packet),
-        )
+            scoreboard = _build_scoreboard(opinions)
+            conflicts = _detect_conflicts(opinions)
+            synthesis = _extract_synthesis(mod_opinion)
+
+            return CouncilResult(
+                session_id=str(uuid.uuid4()),
+                mode=CouncilMode.roundtable,
+                asset_ids=[packet.issuer_id],
+                opinions=opinions,
+                scoreboard=scoreboard,
+                conflict_matrix=conflicts,
+                moderator_synthesis=synthesis,
+                debate_log=None,
+                disclaimer=DISCLAIMER,
+                audit_trail=_build_audit(opinions, packet),
+            )
 
     def run_debate(
         self,
@@ -122,6 +128,16 @@ class CouncilOrchestrator:
         if len(agent_ids) < 2:
             raise ValueError("Debate requires at least 2 agents")
 
+        from q3_ai_assistant.observability.tracing import trace_span
+
+        with trace_span("council.debate", ticker=packet.ticker, agent_count=len(agent_ids)):
+            return self._run_debate_inner(agent_ids, packet)
+
+    def _run_debate_inner(
+        self,
+        agent_ids: list[str],
+        packet: AssetAnalysisPacket,
+    ) -> CouncilResult:
         agents = [create_agent(aid) for aid in agent_ids if aid != "moderator"]
         debate_log: list[DebateRound] = []
 
@@ -250,60 +266,57 @@ class CouncilOrchestrator:
         tickers: list[str],
         packets: list[AssetAnalysisPacket],
     ) -> CouncilResult:
-        """Deterministic comparison + per-asset agent roundtable opinions.
-
-        1. Run lightweight metric comparison across all packets
-        2. Run all specialists on each asset
-        3. Moderator synthesizes the comparative view
-        """
+        """Deterministic comparison + per-asset agent roundtable opinions."""
         if len(packets) < 2:
             raise ValueError("Comparison requires at least 2 assets")
 
-        # Step 1: Build deterministic comparison matrix from packet data
-        comp_matrix = _build_comparison_matrix(tickers, packets)
+        from q3_ai_assistant.observability.tracing import trace_span
 
-        # Step 2: Run specialists on each asset in parallel
-        all_opinions: list[AgentOpinion] = []
-        specialists = create_specialists()
+        with trace_span("council.comparison", ticker_count=len(tickers)):
+            # Step 1: Build deterministic comparison matrix from packet data
+            comp_matrix = _build_comparison_matrix(tickers, packets)
 
-        with ThreadPoolExecutor(max_workers=len(specialists) * len(packets)) as pool:
-            futures = {
-                pool.submit(agent.analyze, pkt, self._specialist_cascade): (i, agent.agent_id)
-                for i, pkt in enumerate(packets)
-                for agent in specialists
-            }
-            # Collect results ordered by (packet_index, agent_id) for determinism
-            results: list[tuple[int, str, AgentOpinion]] = []
-            for future in as_completed(futures):
-                idx, aid = futures[future]
-                results.append((idx, aid, future.result()))
-            results.sort(key=lambda r: (r[0], r[1]))
-            all_opinions = [r[2] for r in results]
+            # Step 2: Run specialists on each asset in parallel
+            all_opinions: list[AgentOpinion] = []
+            specialists = create_specialists()
 
-        # Step 3: Moderator synthesis across all assets
-        moderator = ModeratorAgent()
-        opinion_dicts = [_opinion_to_dict(o) for o in all_opinions]
-        moderator.build_synthesis_prompt(packets[0], opinion_dicts)
-        mod_opinion = moderator.analyze(packets[0], self._orchestrator_cascade)
-        all_opinions.append(mod_opinion)
+            with ThreadPoolExecutor(max_workers=len(specialists) * len(packets)) as pool:
+                futures = {
+                    pool.submit(agent.analyze, pkt, self._specialist_cascade): (i, agent.agent_id)
+                    for i, pkt in enumerate(packets)
+                    for agent in specialists
+                }
+                results: list[tuple[int, str, AgentOpinion]] = []
+                for future in as_completed(futures):
+                    idx, aid = futures[future]
+                    results.append((idx, aid, future.result()))
+                results.sort(key=lambda r: (r[0], r[1]))
+                all_opinions = [r[2] for r in results]
 
-        scoreboard = _build_scoreboard(all_opinions)
-        conflicts = _detect_conflicts(all_opinions)
-        synthesis = _extract_synthesis(mod_opinion)
+            # Step 3: Moderator synthesis across all assets
+            moderator = ModeratorAgent()
+            opinion_dicts = [_opinion_to_dict(o) for o in all_opinions]
+            moderator.build_synthesis_prompt(packets[0], opinion_dicts)
+            mod_opinion = moderator.analyze(packets[0], self._orchestrator_cascade)
+            all_opinions.append(mod_opinion)
 
-        return CouncilResult(
-            session_id=str(uuid.uuid4()),
-            mode=CouncilMode.comparison,
-            asset_ids=[p.issuer_id for p in packets],
-            opinions=all_opinions,
-            scoreboard=scoreboard,
-            conflict_matrix=conflicts,
-            moderator_synthesis=synthesis,
-            debate_log=None,
-            disclaimer=DISCLAIMER,
-            audit_trail=_build_audit(all_opinions, packets[0]),
-            comparison_matrix=comp_matrix,
-        )
+            scoreboard = _build_scoreboard(all_opinions)
+            conflicts = _detect_conflicts(all_opinions)
+            synthesis = _extract_synthesis(mod_opinion)
+
+            return CouncilResult(
+                session_id=str(uuid.uuid4()),
+                mode=CouncilMode.comparison,
+                asset_ids=[p.issuer_id for p in packets],
+                opinions=all_opinions,
+                scoreboard=scoreboard,
+                conflict_matrix=conflicts,
+                moderator_synthesis=synthesis,
+                debate_log=None,
+                disclaimer=DISCLAIMER,
+                audit_trail=_build_audit(all_opinions, packets[0]),
+                comparison_matrix=comp_matrix,
+            )
 
 
 # --- Parallelization helper ---

@@ -14,7 +14,18 @@ from q3_ai_assistant.observability.logging import configure_logging
 configure_logging()
 logger = logging.getLogger(__name__)
 
+# Initialize OpenTelemetry tracing
+from q3_ai_assistant.observability.tracing import setup_tracing
+setup_tracing()
+
 app = FastAPI(title="Q3 AI Assistant", version="0.1.0")
+
+# Instrument FastAPI with OTel
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+except Exception:
+    logger.debug("FastAPI OTel instrumentation skipped")
 
 
 # ---------------------------------------------------------------------------
