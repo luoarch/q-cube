@@ -30,8 +30,8 @@ module.exports = {
     {
       name: "q3-quant-worker",
       cwd: "./services/quant-engine",
-      script: ".venv/bin/celery",
-      args: "-A q3_quant_engine.celery_app worker -Q strategy,backtest --loglevel=info",
+      script: ".venv/bin/python",
+      args: "-m celery -A q3_quant_engine.celery_app worker -Q strategy,backtest --loglevel=info",
       env: {
         PYTHONUNBUFFERED: "1"
       }
@@ -57,8 +57,8 @@ module.exports = {
     {
       name: "q3-fundamentals-worker",
       cwd: "./services/fundamentals-engine",
-      script: ".venv/bin/celery",
-      args: "-A q3_fundamentals_engine.celery_app worker -Q fundamentals --loglevel=info",
+      script: ".venv/bin/python",
+      args: "-m celery -A q3_fundamentals_engine.celery_app worker -Q fundamentals --loglevel=info",
       env: {
         PYTHONUNBUFFERED: "1"
       }
@@ -75,8 +75,8 @@ module.exports = {
     {
       name: "q3-ai-worker",
       cwd: "./services/ai-assistant",
-      script: ".venv/bin/celery",
-      args: "-A q3_ai_assistant.celery_app worker -Q ai-ranking,ai-backtest --loglevel=info",
+      script: ".venv/bin/python",
+      args: "-m celery -A q3_ai_assistant.celery_app worker -Q ai-ranking,ai-backtest --loglevel=info",
       env: {
         PYTHONUNBUFFERED: "1"
       }
@@ -84,8 +84,8 @@ module.exports = {
     {
       name: "q3-ai-beat",
       cwd: "./services/ai-assistant",
-      script: ".venv/bin/celery",
-      args: "-A q3_ai_assistant.celery_app beat --loglevel=info",
+      script: ".venv/bin/python",
+      args: "-m celery -A q3_ai_assistant.celery_app beat --loglevel=info",
       env: {
         PYTHONUNBUFFERED: "1"
       }

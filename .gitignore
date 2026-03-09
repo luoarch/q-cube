@@ -36,3 +36,6 @@ packages/*/src/**/*.js
 packages/*/src/**/*.d.ts
 packages/*/src/**/*.js.map
 services/quant-engine/results/
+
+# Celery Beat schedule files
+celerybeat-schedule*
