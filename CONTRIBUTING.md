@@ -79,11 +79,9 @@ O script usa `.env` automaticamente e resolve host/porta a partir de `DATABASE_U
   /market-ingestion       → Data client adapters (brapi, CVM, Dados de Mercado)
   /ai-assistant           → AI Council, free chat, RAG, ranking explainer, backtest narrator (FastAPI + Celery)
 /packages
-  /shared-contracts       → Zod schemas — SSOT for API payloads (18 domain files)
+  /shared-contracts       → Zod schemas — SSOT for API payloads (19 domain files)
   /shared-fundamentals    → Canonical keys, metric codes, domain enums (TypeScript)
   /shared-models-py       → SQLAlchemy models — SSOT for all Python services
-  /shared-events          → Event schemas
-  /shared-types           → Re-exported types from shared-contracts
 ```
 
 ## 4. Fluxo de trabalho

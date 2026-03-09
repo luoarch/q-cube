@@ -13,9 +13,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@q3/shared-contracts": ["packages/shared-contracts/dist/index.d.ts"],
-      "@q3/shared-events": ["packages/shared-events/dist/index.d.ts"],
-      "@q3/shared-types": ["packages/shared-types/dist/index.d.ts"]
+      "@q3/shared-contracts": ["packages/shared-contracts/dist/index.d.ts"]
     }
   }
 }

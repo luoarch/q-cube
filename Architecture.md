@@ -143,8 +143,6 @@ Stack: FastAPI, Celery (queues: `ai-ranking`, `ai-backtest`), Celery Beat, SQLAl
 | `shared-contracts` | Zod 4 | SSOT para API payloads (19 dominios) |
 | `shared-fundamentals` | TypeScript | Canonical keys, metric codes, domain enums |
 | `shared-models-py` | SQLAlchemy 2.x | SSOT para todas as tabelas Python |
-| `shared-types` | TypeScript | Re-export de tipos de shared-contracts |
-| `shared-events` | TypeScript | Event schemas |
 
 ## 4. Fluxos
 

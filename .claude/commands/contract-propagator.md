@@ -16,14 +16,10 @@ The user will describe a contract change (new field, renamed field, new schema, 
 2. **Find all consumers** by searching for imports of the changed exports:
    - Search `from "@q3/shared-contracts"` across all `.ts` files
    - Search for equivalent Python types in `services/*/src/`
-   - Check `packages/shared-types/src/index.ts` for re-exports
-   - Check `packages/shared-events/src/index.ts` for event schemas using the changed types
 
 3. **Update TypeScript consumers**:
    - `apps/api/` — controllers, services: update `.parse()` calls, method signatures, response shapes
    - `apps/web/` — any type references, form schemas, API calls
-   - `packages/shared-types/` — update re-exports if RunStatus or other re-exported types changed
-   - `packages/shared-events/` — update event schemas if they reference changed types
 
 4. **Update Python consumers**:
    - `packages/shared-models-py/src/q3_shared_models/entities.py` — sync enum values if StrategyType/RunStatus/JobKind changed
@@ -46,5 +42,4 @@ The user will describe a contract change (new field, renamed field, new schema, 
 
 - The Zod schema in `shared-contracts` is always the source of truth — never derive backwards
 - If adding a new enum value, check if a DB migration is needed (new values in PostgreSQL enums require `ALTER TYPE ... ADD VALUE`)
-- Re-exports in `shared-types` must use `export type { X } from "@q3/shared-contracts"` — never redefine
 - When a field is added to a response schema, check if the Drizzle select and SQLAlchemy query return it

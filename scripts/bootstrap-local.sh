@@ -141,8 +141,6 @@ fi
 
 log "compilando pacotes compartilhados TypeScript"
 pnpm --filter @q3/shared-contracts build
-pnpm --filter @q3/shared-events build
-pnpm --filter @q3/shared-types build
 pnpm --filter @q3/api build
 
 ensure_python_service_env \

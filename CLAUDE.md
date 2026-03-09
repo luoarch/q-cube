@@ -93,8 +93,6 @@ All domain schemas live in `packages/shared-contracts` (Zod 4). Any payload chan
 - `domains/jobs.ts` — RunStatus, JobKind, queued event schema
 - `domains/user-context.ts` — UserContextProfile, preferences schemas
 - `domains/versioning.ts` — AnalysisVersionSet for reproducibility
-- `shared-types` re-exports `RunStatus` from shared-contracts — no manual duplicates
-
 ### Dual ORM — same schema, two runtimes
 
 | Layer | ORM | Models |

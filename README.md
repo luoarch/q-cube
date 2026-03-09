@@ -113,8 +113,6 @@ packages/
   shared-contracts/       → Zod 4 schemas — SSOT for API payloads (19 domain files)
   shared-fundamentals/    → Canonical keys, metric codes, domain enums (TypeScript)
   shared-models-py/       → SQLAlchemy models — SSOT for all Python services
-  shared-types/           → Re-exported types from shared-contracts
-  shared-events/          → Event schemas
 ```
 
 ---

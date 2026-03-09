@@ -207,27 +207,11 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  packages/shared-events:
-    devDependencies:
-      typescript:
-        specifier: ^5.8.2
-        version: 5.9.3
-
   packages/shared-fundamentals:
     dependencies:
       zod:
         specifier: ^4.0.0
         version: 4.3.6
-    devDependencies:
-      typescript:
-        specifier: ^5.8.2
-        version: 5.9.3
-
-  packages/shared-types:
-    dependencies:
-      '@q3/shared-contracts':
-        specifier: workspace:*
-        version: link:../shared-contracts
     devDependencies:
       typescript:
         specifier: ^5.8.2
