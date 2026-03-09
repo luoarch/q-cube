@@ -1,32 +1,60 @@
 """Benchmark test suite for council agent quality evaluation.
 
 Tests invariants that must hold for ALL council outputs:
-- Hard reject → verdict must be 'avoid'
+- Hard reject -> verdict must be 'avoid'
 - Verdict-reason alignment (buy has reasonsFor, avoid has reasonsAgainst)
 - No contradictions between reasonsFor and reasonsAgainst
 - Regulatory compliance (no banned phrases)
 - Metrics grounded in packet data
 - Disclaimer always present
+- Framework adherence (agents cite their school's core metrics)
+- Confidence calibration (sensible confidence per scenario)
 
-Also includes known-asset benchmark cases:
+Benchmark cases (10 archetypes):
+- Strong company: easy consensus, all agents buy/watch
 - Value trap: high yield but deteriorating fundamentals
-- Strong consensus: clearly good company
-- Bank classification: safety block skipped
+- Bank: financial classification, safety block skipped
+- Insufficient data: minimal data, agents acknowledge uncertainty
+- Artificial dividend: payout > earnings, unsustainable
+- Turnaround: recovering from losses, mixed signals
+- Utility: regulated, stable — Barsi archetype
+- Cyclical: volatile margins, lower confidence expected
+- Deep value: cheap but ugly — Greenblatt/Graham like it
+- Quality premium: expensive but excellent — Buffett likes, Greenblatt skeptical
 """
 
 from __future__ import annotations
 
 import pytest
 
-from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
 from q3_ai_assistant.council.agents.barsi import _negative_fcf_3_years, _negative_net_income_recurring
+from q3_ai_assistant.council.agents.buffett import _margin_collapse, _roe_consistently_low
 from q3_ai_assistant.council.agents.graham import _high_leverage_and_expensive, _negative_equity
 from q3_ai_assistant.council.agents.greenblatt import _negative_ebit, _roic_consistently_low
-from q3_ai_assistant.council.agents.buffett import _roe_consistently_low, _margin_collapse
+from q3_ai_assistant.council.packet import AssetAnalysisPacket, PeriodValue
+from q3_ai_assistant.evaluation.benchmark import (
+    ALL_BENCHMARK_CASES,
+    ARTIFICIAL_DIVIDEND,
+    BANK,
+    BENCHMARK_CASE_IDS,
+    CYCLICAL,
+    DEEP_VALUE,
+    INSUFFICIENT_DATA,
+    QUALITY_PREMIUM,
+    STRONG_COMPANY,
+    TURNAROUND,
+    UTILITY,
+    VALUE_TRAP,
+    BenchmarkCase,
+    RegressionBaseline,
+)
 from q3_ai_assistant.evaluation.quality import (
+    AGENT_CORE_METRICS,
     BANNED_PHRASES,
     VALID_METRICS,
+    ConfidenceExpectation,
     evaluate_council_result,
+    evaluate_cross_agent_consistency,
     evaluate_opinion,
 )
 
@@ -39,8 +67,8 @@ def _pv(val: float | None, d: str = "2024-12-31") -> PeriodValue:
     return PeriodValue(reference_date=d, value=val)
 
 
-def _make_packet(**overrides) -> AssetAnalysisPacket:
-    defaults = dict(
+def _make_packet(**overrides: object) -> AssetAnalysisPacket:
+    defaults: dict[str, object] = dict(
         issuer_id="bench-id",
         ticker="BENCH3",
         sector="Bens Industriais",
@@ -54,11 +82,11 @@ def _make_packet(**overrides) -> AssetAnalysisPacket:
         avg_daily_volume=None,
     )
     defaults.update(overrides)
-    return AssetAnalysisPacket(**defaults)
+    return AssetAnalysisPacket(**defaults)  # type: ignore[arg-type]
 
 
-def _complete_opinion(agent_id: str = "greenblatt", **overrides) -> dict:
-    base = {
+def _complete_opinion(agent_id: str = "greenblatt", **overrides: object) -> dict:
+    base: dict[str, object] = {
         "agentId": agent_id,
         "profileVersion": 1,
         "promptVersion": 1,
@@ -78,8 +106,8 @@ def _complete_opinion(agent_id: str = "greenblatt", **overrides) -> dict:
     return base
 
 
-def _council_result(opinions: list[dict], **overrides) -> dict:
-    base = {
+def _council_result(opinions: list[dict], **overrides: object) -> dict:
+    base: dict[str, object] = {
         "opinions": opinions,
         "disclaimer": "Este conteudo e meramente educacional e nao constitui recomendacao de investimento.",
         "scoreboard": {"entries": [], "consensus": None, "consensus_strength": None},
@@ -98,215 +126,341 @@ def _council_result(opinions: list[dict], **overrides) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Benchmark Case 1: Value Trap
-# High yield but deteriorating fundamentals — agents should be cautious
+# Hard Reject Functions (for parametrized testing)
 # ---------------------------------------------------------------------------
 
-class TestValueTrapCase:
-    """Company with high EY/ROIC but declining margins and rising debt."""
-
-    @pytest.fixture
-    def packet(self):
-        return _make_packet(
-            ticker="TRAP3",
-            fundamentals={
-                "earnings_yield": 0.15,  # looks cheap
-                "roic": 0.12,
-                "roe": 0.10,
-                "ebit": 200.0,
-                "debt_to_ebitda": 4.5,  # high leverage
-                "gross_margin": 0.18,  # low and declining
-            },
-            trends={
-                "gross_margin": [_pv(0.30, "2022"), _pv(0.24, "2023"), _pv(0.18, "2024")],
-                "ebit_margin": [_pv(0.15, "2022"), _pv(0.10, "2023"), _pv(0.06, "2024")],
-                "debt_to_ebitda": [_pv(2.0, "2022"), _pv(3.0, "2023"), _pv(4.5, "2024")],
-                "net_income": [_pv(100, "2022"), _pv(80, "2023"), _pv(50, "2024")],
-                "roic": [_pv(0.18, "2022"), _pv(0.15, "2023"), _pv(0.12, "2024")],
-                "cash_from_operations": [_pv(120, "2022"), _pv(90, "2023"), _pv(60, "2024")],
-                "cash_from_investing": [_pv(-80, "2022"), _pv(-90, "2023"), _pv(-100, "2024")],
-            },
-        )
-
-    def test_graham_rejects_high_leverage(self, packet):
-        """Graham should reject: debt/ebitda > 5 and EY < 5%... but actually D/E=4.5, EY=15%.
-        This won't trigger hard reject. But margin collapse should concern Buffett."""
-        assert _high_leverage_and_expensive(packet) is False
-
-    def test_buffett_detects_margin_collapse(self, packet):
-        """Gross margin went from 30% to 18% — below 70% of initial: 0.30 * 0.7 = 0.21."""
-        assert _margin_collapse(packet) is True
-
-    def test_negative_fcf_last_period(self, packet):
-        """CFO 60 + CFI -100 = -40 in last period. But not all 3 negative."""
-        assert _negative_fcf_3_years(packet) is False
-
-    def test_value_trap_opinion_should_flag_risks(self):
-        """An opinion on a value trap should have reasonsAgainst."""
-        opinion = _complete_opinion(
-            agent_id="buffett",
-            verdict="avoid",
-            thesis="Despite attractive valuation, margin collapse and rising leverage signal fundamental deterioration.",
-            reasonsFor=["High earnings yield"],
-            reasonsAgainst=["Margin collapse (30% → 18%)", "Rising debt/EBITDA", "Declining ROIC"],
-            keyMetricsUsed=["earnings_yield", "gross_margin", "debt_to_ebitda", "roic"],
-            hardRejectsTriggered=["margin_collapse"],
-        )
-        score = evaluate_opinion(opinion)
-        assert score.completeness == 1.0
-        assert score.consistency == 1.0  # avoid + reasonsAgainst present
-        assert score.regulatory_compliance == 1.0
-        assert score.overall >= 0.8
+_REJECT_FUNCTIONS = {
+    "negative_fcf_3y": _negative_fcf_3_years,
+    "negative_ni_recurring": _negative_net_income_recurring,
+    "high_leverage_expensive": _high_leverage_and_expensive,
+    "negative_equity": _negative_equity,
+    "negative_ebit": _negative_ebit,
+    "roic_consistently_low": _roic_consistently_low,
+    "roe_consistently_low": _roe_consistently_low,
+    "margin_collapse": _margin_collapse,
+}
 
 
-# ---------------------------------------------------------------------------
-# Benchmark Case 2: Strong Consensus
-# Clearly good company — all agents should lean buy/watch
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SECTION 1: Archetype Hard Reject Tests (parametrized)
+# ===========================================================================
 
-class TestStrongConsensusCase:
-    """Company with strong fundamentals across all dimensions."""
+class TestArchetypeHardRejects:
+    """Verify expected hard reject outcomes for each benchmark archetype."""
 
-    @pytest.fixture
-    def packet(self):
-        return _make_packet(
-            ticker="GOOD3",
-            fundamentals={
-                "earnings_yield": 0.10,
-                "roic": 0.25,
-                "roe": 0.22,
-                "ebit": 500.0,
-                "debt_to_ebitda": 1.0,
-                "gross_margin": 0.45,
-                "ebit_margin": 0.20,
-                "net_margin": 0.15,
-                "cash_conversion": 1.1,
-            },
-            trends={
-                "roic": [_pv(0.22, "2022"), _pv(0.24, "2023"), _pv(0.25, "2024")],
-                "roe": [_pv(0.20, "2022"), _pv(0.21, "2023"), _pv(0.22, "2024")],
-                "gross_margin": [_pv(0.43, "2022"), _pv(0.44, "2023"), _pv(0.45, "2024")],
-                "ebit_margin": [_pv(0.18, "2022"), _pv(0.19, "2023"), _pv(0.20, "2024")],
-                "net_income": [_pv(350, "2022"), _pv(400, "2023"), _pv(450, "2024")],
-                "cash_from_operations": [_pv(400, "2022"), _pv(450, "2023"), _pv(500, "2024")],
-                "cash_from_investing": [_pv(-100, "2022"), _pv(-110, "2023"), _pv(-120, "2024")],
-                "debt_to_ebitda": [_pv(1.2, "2022"), _pv(1.1, "2023"), _pv(1.0, "2024")],
-            },
-        )
+    @pytest.mark.parametrize("case", ALL_BENCHMARK_CASES, ids=BENCHMARK_CASE_IDS)
+    def test_expected_hard_rejects_fire(self, case: BenchmarkCase):
+        """Hard rejects listed in expected_hard_rejects should trigger."""
+        for agent_id, expected_codes in case.expected_hard_rejects.items():
+            for code in expected_codes:
+                fn = _REJECT_FUNCTIONS.get(code)
+                assert fn is not None, f"Unknown reject code: {code}"
+                result = fn(case.packet)
+                assert result is True, (
+                    f"[{case.name}] {agent_id} reject '{code}' should fire but didn't"
+                )
 
-    def test_no_hard_rejects_fire(self, packet):
-        """No hard reject should trigger for a strong company."""
-        assert _negative_ebit(packet) is False
-        assert _roic_consistently_low(packet) is False
-        assert _roe_consistently_low(packet) is False
-        assert _margin_collapse(packet) is False
-        assert _negative_fcf_3_years(packet) is False
-        assert _negative_net_income_recurring(packet) is False
-        assert _high_leverage_and_expensive(packet) is False
-        assert _negative_equity(packet) is False
+    @pytest.mark.parametrize("case", ALL_BENCHMARK_CASES, ids=BENCHMARK_CASE_IDS)
+    def test_expected_no_hard_rejects(self, case: BenchmarkCase):
+        """Hard rejects listed in expected_no_hard_rejects should NOT trigger."""
+        for agent_id, not_expected_codes in case.expected_no_hard_rejects.items():
+            for code in not_expected_codes:
+                fn = _REJECT_FUNCTIONS.get(code)
+                assert fn is not None, f"Unknown reject code: {code}"
+                result = fn(case.packet)
+                assert result is False, (
+                    f"[{case.name}] {agent_id} reject '{code}' should NOT fire but did"
+                )
 
-    def test_consensus_council_result_quality(self):
-        """A roundtable with all buy/watch should score high."""
+
+# ===========================================================================
+# SECTION 2: Individual Archetype Deep Tests
+# ===========================================================================
+
+class TestStrongCompany:
+    """Strong company — all agents should agree, no rejects."""
+
+    def test_no_rejects_for_any_agent(self):
+        pkt = STRONG_COMPANY.packet
+        for code, fn in _REJECT_FUNCTIONS.items():
+            assert fn(pkt) is False, f"Reject '{code}' should not fire for strong company"
+
+    def test_consensus_council_quality(self):
         opinions = [
-            _complete_opinion("greenblatt", verdict="buy", confidence=85),
-            _complete_opinion("buffett", verdict="buy", confidence=80),
+            _complete_opinion("greenblatt", verdict="buy", confidence=85,
+                              keyMetricsUsed=["roic", "earnings_yield", "ebit"]),
+            _complete_opinion("buffett", verdict="buy", confidence=80,
+                              keyMetricsUsed=["roe", "gross_margin", "cash_from_operations"]),
             _complete_opinion("graham", verdict="watch", confidence=70,
-                             thesis="Solid fundamentals but valuation is at fair value, not a deep discount."),
-            _complete_opinion("barsi", verdict="buy", confidence=75),
+                              thesis="Solid fundamentals but valuation at fair value, not a deep discount.",
+                              keyMetricsUsed=["earnings_yield", "debt_to_ebitda", "net_margin"]),
+            _complete_opinion("barsi", verdict="buy", confidence=75,
+                              keyMetricsUsed=["net_income", "cash_from_operations", "earnings_yield"]),
         ]
         result = _council_result(opinions)
         scores = evaluate_council_result(result)
         assert scores["overall"] >= 0.8
         assert len(scores["issues"]) == 0
 
+    def test_cross_agent_consistency(self):
+        opinions = [
+            _complete_opinion("greenblatt", verdict="buy", confidence=85),
+            _complete_opinion("buffett", verdict="buy", confidence=80),
+            _complete_opinion("graham", verdict="watch", confidence=70),
+            _complete_opinion("barsi", verdict="buy", confidence=75),
+        ]
+        consistency = evaluate_cross_agent_consistency(opinions)
+        assert consistency["verdict_agreement"] >= 0.5
+        assert len(consistency["issues"]) == 0
 
-# ---------------------------------------------------------------------------
-# Benchmark Case 3: Bank/Financial Classification
-# Safety block skipped, different metrics
-# ---------------------------------------------------------------------------
 
-class TestBankClassificationCase:
-    """Bank should skip debt/EBITDA and leverage hard rejects."""
+class TestValueTrap:
+    """Value trap — Buffett should hard-reject, others cautious."""
 
-    @pytest.fixture
-    def packet(self):
-        return _make_packet(
-            ticker="BANK4",
-            classification="bank",
-            sector="Financeiro",
-            subsector="Bancos",
-            fundamentals={
-                "roe": 0.18,
-                "earnings_yield": 0.08,
-                "net_margin": 0.25,
-                "debt_to_ebitda": 15.0,  # meaningless for banks
-            },
-            trends={
-                "roe": [_pv(0.16, "2022"), _pv(0.17, "2023"), _pv(0.18, "2024")],
-                "net_income": [_pv(1000, "2022"), _pv(1100, "2023"), _pv(1200, "2024")],
-            },
+    def test_buffett_hard_reject(self):
+        assert _margin_collapse(VALUE_TRAP.packet) is True
+
+    def test_graham_no_hard_reject(self):
+        # D/E = 4.5 (< 5.0) so Graham doesn't reject
+        assert _high_leverage_and_expensive(VALUE_TRAP.packet) is False
+
+    def test_value_trap_opinion_quality(self):
+        opinion = _complete_opinion(
+            agent_id="buffett",
+            verdict="avoid",
+            confidence=80,
+            thesis="Despite attractive valuation, margin collapse and rising leverage signal fundamental deterioration.",
+            reasonsFor=["High earnings yield"],
+            reasonsAgainst=["Margin collapse (30% to 18%)", "Rising debt/EBITDA", "Declining ROIC"],
+            keyMetricsUsed=["earnings_yield", "gross_margin", "debt_to_ebitda", "roic"],
+            hardRejectsTriggered=["margin_collapse"],
         )
+        score = evaluate_opinion(
+            opinion,
+            confidence_expectation=VALUE_TRAP.expected_confidence.get("buffett"),
+        )
+        assert score.completeness == 1.0
+        assert score.consistency == 1.0
+        assert score.framework_adherence > 0.0
+        assert score.overall >= 0.8
 
-    def test_graham_skips_leverage_for_banks(self, packet):
-        """Graham hard reject for high leverage should skip banks."""
-        assert _high_leverage_and_expensive(packet) is False
 
-    def test_roe_not_low_for_bank(self, packet):
-        """Bank has good ROE, should not trigger Buffett reject."""
-        assert _roe_consistently_low(packet) is False
+class TestBank:
+    """Bank — leverage rules skipped."""
+
+    def test_graham_skips_leverage(self):
+        assert _high_leverage_and_expensive(BANK.packet) is False
+
+    def test_buffett_roe_ok(self):
+        assert _roe_consistently_low(BANK.packet) is False
 
 
-# ---------------------------------------------------------------------------
-# Benchmark Case 4: Insufficient Data
-# Company with minimal data — agents should return insufficient_data
-# ---------------------------------------------------------------------------
+class TestInsufficientData:
+    """Minimal data — all should return insufficient_data or very low confidence."""
 
-class TestInsufficientDataCase:
-    def test_empty_packet_no_hard_rejects(self):
-        """With no data, hard rejects should not fire (return False on missing)."""
-        packet = _make_packet(fundamentals={}, trends={})
-        assert _negative_ebit(packet) is False
-        assert _negative_equity(packet) is False
-        assert _roic_consistently_low(packet) is False
-        assert _roe_consistently_low(packet) is False
-        assert _margin_collapse(packet) is False
-        assert _negative_fcf_3_years(packet) is False
+    def test_no_hard_rejects_fire(self):
+        for code, fn in _REJECT_FUNCTIONS.items():
+            assert fn(INSUFFICIENT_DATA.packet) is False, (
+                f"Reject '{code}' should not fire on empty data"
+            )
 
-    def test_insufficient_data_opinion_quality(self):
-        """An opinion with insufficient_data verdict should still score well if complete."""
+    def test_opinion_quality_for_insufficient(self):
         opinion = _complete_opinion(
             verdict="insufficient_data",
             confidence=10,
-            thesis="Insufficient financial data to form a meaningful opinion. Only 1 period available.",
+            thesis="Insufficient financial data to form a meaningful opinion. No periods available.",
             reasonsFor=[],
             reasonsAgainst=[],
             keyMetricsUsed=[],
-            unknowns=["Revenue trend", "Margin trajectory", "Debt levels"],
+            unknowns=["All fundamental metrics", "Revenue trend", "Profitability"],
+        )
+        score = evaluate_opinion(
+            opinion,
+            confidence_expectation=INSUFFICIENT_DATA.expected_confidence.get("greenblatt"),
+        )
+        assert score.completeness == 1.0
+        assert score.confidence_calibration == 1.0
+
+
+class TestArtificialDividend:
+    """Payout exceeds earnings — Barsi should be cautious."""
+
+    def test_no_hard_rejects_but_warning(self):
+        # FCF is positive in all 3 years: (90-40)=50, (70-50)=20, (50-60)=-10
+        # Not all 3 negative, so no hard reject for Barsi
+        pkt = ARTIFICIAL_DIVIDEND.packet
+        assert _negative_fcf_3_years(pkt) is False
+        assert _negative_net_income_recurring(pkt) is False
+
+    def test_barsi_opinion_should_flag_sustainability(self):
+        """A well-crafted Barsi opinion should mention dividend sustainability concerns."""
+        opinion = _complete_opinion(
+            agent_id="barsi",
+            verdict="watch",
+            confidence=45,
+            thesis="Dividends appear funded partially by debt. CFO declining and financing outflows exceed net income. Sustainability questionable.",
+            reasonsFor=["Decent earnings yield"],
+            reasonsAgainst=["Dividends exceed earnings", "Rising debt", "Declining CFO"],
+            keyMetricsUsed=["earnings_yield", "net_income", "cash_from_operations", "cash_from_financing", "debt_to_ebitda"],
         )
         score = evaluate_opinion(opinion)
-        assert score.completeness == 1.0
-        assert score.regulatory_compliance == 1.0
+        assert score.framework_adherence > 0.5
+        assert score.consistency == 1.0
 
 
-# ---------------------------------------------------------------------------
-# Invariant: Hard Reject → Avoid
-# ---------------------------------------------------------------------------
+class TestTurnaround:
+    """Recent recovery — Barsi should hard-reject (2 negative NI years)."""
+
+    def test_barsi_rejects_recurring_losses(self):
+        assert _negative_net_income_recurring(TURNAROUND.packet) is True
+
+    def test_greenblatt_no_reject(self):
+        # Current EBIT = 80 > 0
+        assert _negative_ebit(TURNAROUND.packet) is False
+
+    def test_roic_not_consistently_low(self):
+        # ROIC: -0.03, 0.02, 0.07 — _roic_consistently_low uses all(),
+        # so 0.07 >= 0.05 means not all are low -> False
+        assert _roic_consistently_low(TURNAROUND.packet) is False
+
+
+class TestUtility:
+    """Regulated utility — stable, no rejects, Barsi should favor."""
+
+    def test_no_hard_rejects(self):
+        for code, fn in _REJECT_FUNCTIONS.items():
+            assert fn(UTILITY.packet) is False, f"Reject '{code}' should not fire for utility"
+
+    def test_barsi_opinion_quality(self):
+        opinion = _complete_opinion(
+            agent_id="barsi",
+            verdict="buy",
+            confidence=80,
+            thesis="Utility with stable margins, predictable cash flows, and consistent dividend coverage. Classic perennial business.",
+            reasonsFor=["Stable margins", "Consistent FCF", "Regulated revenue"],
+            reasonsAgainst=["Moderate growth ceiling"],
+            keyMetricsUsed=["earnings_yield", "net_income", "cash_from_operations", "net_margin"],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence > 0.5
+        assert score.overall >= 0.85
+
+
+class TestCyclical:
+    """Cyclical — volatile margins, agents should have moderate confidence."""
+
+    def test_no_hard_rejects(self):
+        pkt = CYCLICAL.packet
+        assert _margin_collapse(pkt) is False  # not 30%+ decline — recovered
+        assert _negative_ebit(pkt) is False
+
+    def test_confidence_calibration(self):
+        opinion = _complete_opinion(
+            agent_id="buffett",
+            verdict="watch",
+            confidence=55,
+            thesis="Strong current fundamentals but volatile margin history raises concerns about sustainability.",
+            reasonsFor=["High current ROIC", "Low leverage"],
+            reasonsAgainst=["Margin volatility", "Cyclical exposure"],
+            keyMetricsUsed=["roe", "gross_margin", "roic", "cash_from_operations"],
+        )
+        score = evaluate_opinion(
+            opinion,
+            confidence_expectation=CYCLICAL.expected_confidence.get("buffett"),
+        )
+        assert score.confidence_calibration == 1.0
+
+    def test_overconfident_penalized(self):
+        opinion = _complete_opinion(
+            agent_id="buffett",
+            verdict="buy",
+            confidence=95,
+            thesis="Strong current fundamentals justify high confidence buy recommendation.",
+            keyMetricsUsed=["roe", "gross_margin"],
+        )
+        score = evaluate_opinion(
+            opinion,
+            confidence_expectation=CYCLICAL.expected_confidence.get("buffett"),
+        )
+        assert score.confidence_calibration < 1.0
+
+
+class TestDeepValue:
+    """Cheap but low margins — Greenblatt should like high EY + ROIC."""
+
+    def test_no_greenblatt_rejects(self):
+        assert _negative_ebit(DEEP_VALUE.packet) is False
+        assert _roic_consistently_low(DEEP_VALUE.packet) is False
+
+    def test_greenblatt_framework_adherence(self):
+        opinion = _complete_opinion(
+            agent_id="greenblatt",
+            verdict="buy",
+            confidence=80,
+            thesis="High earnings yield of 20% combined with improving ROIC of 15% represents a classic Magic Formula candidate.",
+            reasonsFor=["High EY at 20%", "ROIC of 15% and improving", "Growing EBIT"],
+            reasonsAgainst=["Low gross margin"],
+            keyMetricsUsed=["earnings_yield", "roic", "ebit", "ebit_margin"],
+        )
+        score = evaluate_opinion(
+            opinion,
+            confidence_expectation=DEEP_VALUE.expected_confidence.get("greenblatt"),
+        )
+        assert score.framework_adherence == 1.0
+        assert score.confidence_calibration == 1.0
+
+
+class TestQualityPremium:
+    """Expensive but excellent quality — expected divergence between agents."""
+
+    def test_no_hard_rejects(self):
+        for code, fn in _REJECT_FUNCTIONS.items():
+            assert fn(QUALITY_PREMIUM.packet) is False
+
+    def test_expected_divergence(self):
+        """Buffett buy + Greenblatt watch/avoid = legitimate divergence."""
+        opinions = [
+            _complete_opinion("buffett", verdict="buy", confidence=80,
+                              thesis="Exceptional quality business with wide moat. High ROE, expanding margins, and strong FCF justify premium valuation.",
+                              keyMetricsUsed=["roe", "gross_margin", "cash_from_operations", "net_margin"]),
+            _complete_opinion("greenblatt", verdict="watch", confidence=55,
+                              thesis="Quality is undeniable but EY of 4% is too low for Magic Formula criteria. Current price offers insufficient return.",
+                              reasonsFor=["High ROIC of 30%"],
+                              reasonsAgainst=["EY only 4%", "Overvalued by Magic Formula standards"],
+                              keyMetricsUsed=["earnings_yield", "roic", "ebit"]),
+            _complete_opinion("graham", verdict="avoid", confidence=60,
+                              thesis="No margin of safety at current valuations. Despite quality, price is too high for conservative investors.",
+                              reasonsFor=["Low debt"],
+                              reasonsAgainst=["EY only 4%", "Premium to intrinsic value"],
+                              keyMetricsUsed=["earnings_yield", "debt_to_ebitda", "gross_margin"]),
+        ]
+        result = _council_result(opinions)
+        scores = evaluate_council_result(result)
+        assert scores["overall"] >= 0.7
+
+        consistency = evaluate_cross_agent_consistency(opinions)
+        assert len(consistency["unique_verdicts"]) >= 2  # divergence expected
+
+
+# ===========================================================================
+# SECTION 3: Universal Invariant Tests
+# ===========================================================================
 
 class TestHardRejectImpliesAvoid:
     """When a hard reject triggers, the opinion verdict MUST be 'avoid'."""
 
     @pytest.mark.parametrize("agent_id,reject_name", [
-        ("barsi", "negative_fcf_3_years"),
-        ("barsi", "negative_net_income_recurring"),
-        ("graham", "high_leverage_and_expensive"),
+        ("barsi", "negative_fcf_3y"),
+        ("barsi", "negative_ni_recurring"),
+        ("graham", "high_leverage_expensive"),
         ("graham", "negative_equity"),
         ("greenblatt", "negative_ebit"),
         ("greenblatt", "roic_consistently_low"),
         ("buffett", "roe_consistently_low"),
         ("buffett", "margin_collapse"),
     ])
-    def test_hard_reject_forces_avoid(self, agent_id, reject_name):
-        """If hardRejectsTriggered is non-empty, verdict must be avoid."""
+    def test_hard_reject_forces_avoid(self, agent_id: str, reject_name: str):
+        # Correct: hard reject + avoid
         opinion = _complete_opinion(
             agent_id=agent_id,
             verdict="avoid",
@@ -316,63 +470,46 @@ class TestHardRejectImpliesAvoid:
         )
         score = evaluate_opinion(opinion)
         assert score.consistency == 1.0
+        assert score.contradiction_free == 1.0
 
-        # Verify the invariant: hard reject + non-avoid is inconsistent
+        # Wrong: hard reject + buy — should be flagged
         bad_opinion = _complete_opinion(
             agent_id=agent_id,
             verdict="buy",
             hardRejectsTriggered=[reject_name],
         )
-        # This should have consistency < 1 because verdict contradicts hard reject
-        # (the current evaluator doesn't check this yet — but we verify structure)
-        assert bad_opinion["hardRejectsTriggered"] == [reject_name]
-        assert bad_opinion["verdict"] == "buy"  # structurally valid but logically wrong
+        bad_score = evaluate_opinion(bad_opinion)
+        assert bad_score.contradiction_free == 0.0
 
-
-# ---------------------------------------------------------------------------
-# Invariant: Regulatory Compliance
-# ---------------------------------------------------------------------------
 
 class TestRegulatoryInvariants:
     """All council outputs must pass regulatory compliance."""
 
-    def test_all_banned_phrases_detected(self):
-        """Every banned phrase should be caught."""
-        for phrase in BANNED_PHRASES:
-            opinion = _complete_opinion(thesis=f"This company is great. {phrase}!")
-            score = evaluate_opinion(opinion)
-            assert score.regulatory_compliance == 0.0, f"Missed banned phrase: {phrase}"
+    @pytest.mark.parametrize("phrase", BANNED_PHRASES)
+    def test_banned_phrase_detected(self, phrase: str):
+        opinion = _complete_opinion(thesis=f"This company is great. {phrase}!")
+        score = evaluate_opinion(opinion)
+        assert score.regulatory_compliance == 0.0, f"Missed banned phrase: {phrase}"
 
     def test_disclaimer_required(self):
-        """Council result without disclaimer should be penalized."""
-        result = _council_result(
-            [_complete_opinion()],
-            disclaimer="",
-        )
+        result = _council_result([_complete_opinion()], disclaimer="")
         scores = evaluate_council_result(result)
         assert any("Missing disclaimer" in i for i in scores["issues"])
 
     def test_disclaimer_present_no_penalty(self):
-        """Council result with disclaimer should not be penalized."""
         result = _council_result([_complete_opinion()])
         scores = evaluate_council_result(result)
         assert not any("Missing disclaimer" in i for i in scores["issues"])
 
 
-# ---------------------------------------------------------------------------
-# Invariant: Metric Groundedness
-# ---------------------------------------------------------------------------
-
 class TestMetricGroundedness:
     """Agents must only reference metrics from their packet."""
 
     def test_all_valid_metrics_known(self):
-        """All valid metrics should be recognized."""
         for metric in ["roic", "earnings_yield", "roe", "debt_to_ebitda", "gross_margin"]:
             assert metric in VALID_METRICS
 
     def test_fabricated_metrics_penalized(self):
-        """Referencing non-existent metrics should lower groundedness."""
         opinion = _complete_opinion(
             keyMetricsUsed=["made_up_ratio", "fake_metric", "roic"],
         )
@@ -380,7 +517,6 @@ class TestMetricGroundedness:
         assert score.groundedness < 1.0
 
     def test_packet_scoped_validation(self):
-        """When packet_metrics provided, only those should be valid."""
         packet_metrics = {"roic", "earnings_yield"}
         opinion = _complete_opinion(
             keyMetricsUsed=["roic", "roe"],  # roe not in packet
@@ -388,10 +524,6 @@ class TestMetricGroundedness:
         score = evaluate_opinion(opinion, packet_metrics=packet_metrics)
         assert score.groundedness == 0.5  # 1 of 2
 
-
-# ---------------------------------------------------------------------------
-# Invariant: Verdict-Reason Alignment
-# ---------------------------------------------------------------------------
 
 class TestVerdictReasonAlignment:
     """Verdict should be consistent with provided reasons."""
@@ -409,43 +541,228 @@ class TestVerdictReasonAlignment:
     def test_contradicting_reasons_detected(self):
         opinion = _complete_opinion(
             reasonsFor=["High ROIC", "Strong margins"],
-            reasonsAgainst=["High ROIC"],  # same as a reason for
+            reasonsAgainst=["High ROIC"],
         )
         score = evaluate_opinion(opinion)
         assert score.contradiction_free == 0.0
 
 
-# ---------------------------------------------------------------------------
-# Full Council Result Quality
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SECTION 4: Framework Adherence Tests
+# ===========================================================================
+
+class TestFrameworkAdherence:
+    """Each agent should cite metrics from its investment school."""
+
+    @pytest.mark.parametrize("agent_id", ["barsi", "graham", "greenblatt", "buffett"])
+    def test_core_metrics_defined(self, agent_id: str):
+        assert agent_id in AGENT_CORE_METRICS
+        assert len(AGENT_CORE_METRICS[agent_id]) >= 4
+
+    def test_greenblatt_uses_ey_roic(self):
+        opinion = _complete_opinion(
+            agent_id="greenblatt",
+            keyMetricsUsed=["earnings_yield", "roic", "ebit"],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence == 1.0
+
+    def test_greenblatt_missing_core_metrics_penalized(self):
+        opinion = _complete_opinion(
+            agent_id="greenblatt",
+            keyMetricsUsed=["roe", "gross_margin"],  # not Greenblatt's core
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence < 1.0
+
+    def test_buffett_uses_roe_margins(self):
+        opinion = _complete_opinion(
+            agent_id="buffett",
+            keyMetricsUsed=["roe", "gross_margin", "cash_from_operations"],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence == 1.0
+
+    def test_barsi_uses_cash_flow_metrics(self):
+        opinion = _complete_opinion(
+            agent_id="barsi",
+            keyMetricsUsed=["net_income", "cash_from_operations", "earnings_yield"],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence == 1.0
+
+    def test_graham_uses_debt_and_value(self):
+        opinion = _complete_opinion(
+            agent_id="graham",
+            keyMetricsUsed=["earnings_yield", "debt_to_ebitda", "gross_margin"],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence == 1.0
+
+    def test_no_metrics_at_all_penalized(self):
+        opinion = _complete_opinion(
+            agent_id="greenblatt",
+            keyMetricsUsed=[],
+        )
+        score = evaluate_opinion(opinion)
+        assert score.framework_adherence == 0.0
+
+
+# ===========================================================================
+# SECTION 5: Confidence Calibration Tests
+# ===========================================================================
+
+class TestConfidenceCalibration:
+    """Confidence levels should be sensible per scenario."""
+
+    def test_insufficient_data_low_confidence(self):
+        opinion = _complete_opinion(
+            verdict="insufficient_data",
+            confidence=85,
+        )
+        score = evaluate_opinion(opinion)
+        assert score.confidence_calibration < 1.0
+
+    def test_insufficient_data_expected_range(self):
+        opinion = _complete_opinion(
+            verdict="insufficient_data",
+            confidence=15,
+        )
+        expectation = ConfidenceExpectation(0, 30, "no data")
+        score = evaluate_opinion(opinion, confidence_expectation=expectation)
+        assert score.confidence_calibration == 1.0
+
+    def test_overconfident_on_volatile_penalized(self):
+        opinion = _complete_opinion(confidence=95)
+        expectation = ConfidenceExpectation(30, 75, "volatile cyclical")
+        score = evaluate_opinion(opinion, confidence_expectation=expectation)
+        assert score.confidence_calibration < 1.0
+
+    def test_underconfident_on_strong_penalized(self):
+        opinion = _complete_opinion(confidence=20)
+        expectation = ConfidenceExpectation(60, 95, "strong fundamentals")
+        score = evaluate_opinion(opinion, confidence_expectation=expectation)
+        assert score.confidence_calibration < 1.0
+
+
+# ===========================================================================
+# SECTION 6: Cross-Agent Consistency Tests
+# ===========================================================================
+
+class TestCrossAgentConsistency:
+    """Multiple agents analyzing the same asset should be factually consistent."""
+
+    def test_unanimous_buy_high_agreement(self):
+        opinions = [
+            _complete_opinion("greenblatt", verdict="buy"),
+            _complete_opinion("buffett", verdict="buy"),
+            _complete_opinion("graham", verdict="buy"),
+            _complete_opinion("barsi", verdict="buy"),
+        ]
+        result = evaluate_cross_agent_consistency(opinions)
+        assert result["verdict_agreement"] == 1.0
+
+    def test_split_verdict_lower_agreement(self):
+        opinions = [
+            _complete_opinion("greenblatt", verdict="buy"),
+            _complete_opinion("buffett", verdict="buy"),
+            _complete_opinion("graham", verdict="avoid"),
+            _complete_opinion("barsi", verdict="watch"),
+        ]
+        result = evaluate_cross_agent_consistency(opinions)
+        assert result["verdict_agreement"] < 1.0
+        assert len(result["unique_verdicts"]) == 3
+
+    def test_hard_reject_plus_buy_without_reasons_flagged(self):
+        opinions = [
+            _complete_opinion("buffett", verdict="avoid",
+                              hardRejectsTriggered=["margin_collapse"]),
+            _complete_opinion("greenblatt", verdict="buy",
+                              reasonsAgainst=[]),  # no counterpoints
+        ]
+        result = evaluate_cross_agent_consistency(opinions)
+        assert len(result["issues"]) > 0
+
+
+# ===========================================================================
+# SECTION 7: Full Council Result Quality
+# ===========================================================================
 
 class TestFullCouncilQuality:
     """End-to-end quality checks on full council results."""
 
-    def test_roundtable_4_agents_scores_high(self):
+    def test_roundtable_4_agents(self):
         opinions = [
-            _complete_opinion("greenblatt"),
-            _complete_opinion("buffett"),
+            _complete_opinion("greenblatt",
+                              keyMetricsUsed=["roic", "earnings_yield", "ebit"]),
+            _complete_opinion("buffett",
+                              keyMetricsUsed=["roe", "gross_margin", "cash_from_operations"]),
             _complete_opinion("graham", verdict="watch",
-                             thesis="Fair valuation but not a deep discount. Margin of safety is thin."),
-            _complete_opinion("barsi"),
+                              thesis="Fair valuation but not a deep discount. Margin of safety is thin.",
+                              keyMetricsUsed=["earnings_yield", "debt_to_ebitda", "net_margin"]),
+            _complete_opinion("barsi",
+                              keyMetricsUsed=["net_income", "cash_from_operations", "earnings_yield"]),
         ]
         result = _council_result(opinions)
         scores = evaluate_council_result(result)
         assert scores["overall"] >= 0.8
         assert len(scores["per_agent"]) == 4
+        # Each agent should have framework_adherence scored
+        for agent_id, agent_scores in scores["per_agent"].items():
+            assert "framework_adherence" in agent_scores
 
     def test_debate_with_conflict(self):
         opinions = [
-            _complete_opinion("greenblatt", verdict="buy", confidence=80),
+            _complete_opinion("greenblatt", verdict="buy", confidence=80,
+                              keyMetricsUsed=["roic", "earnings_yield"]),
             _complete_opinion("graham", verdict="avoid", confidence=65,
-                             thesis="Too expensive relative to book value. Insufficient margin of safety for conservative investors.",
-                             reasonsFor=["Decent operating margins"],
-                             reasonsAgainst=["P/VPA too high", "Weak current ratio"]),
+                              thesis="Too expensive relative to book value. Insufficient margin of safety for conservative investors.",
+                              reasonsFor=["Decent operating margins"],
+                              reasonsAgainst=["P/VPA too high", "Weak current ratio"],
+                              keyMetricsUsed=["earnings_yield", "debt_to_ebitda"]),
         ]
         result = _council_result(opinions)
         scores = evaluate_council_result(result)
         assert scores["overall"] >= 0.7
-        # Both agents should be evaluated
         assert "greenblatt" in scores["per_agent"]
         assert "graham" in scores["per_agent"]
+
+
+# ===========================================================================
+# SECTION 8: Regression Detection
+# ===========================================================================
+
+class TestRegressionBaseline:
+    """Baseline tracking and drift detection."""
+
+    def test_record_and_check_no_regression(self):
+        baseline = RegressionBaseline(threshold=0.10)
+        score = evaluate_opinion(_complete_opinion())
+        baseline.record("test_case", "greenblatt", score)
+
+        # Same score — no regression
+        drift = baseline.check_drift("test_case", "greenblatt", score)
+        assert drift["has_regression"] is False
+
+    def test_detect_regression(self):
+        baseline = RegressionBaseline(threshold=0.10)
+        good_score = evaluate_opinion(_complete_opinion())
+        baseline.record("test_case", "greenblatt", good_score)
+
+        # Degraded opinion
+        bad_opinion = _complete_opinion(
+            thesis="Short.",  # too short
+            keyMetricsUsed=[],  # no metrics
+            reasonsFor=[],  # buy without reasons
+        )
+        bad_score = evaluate_opinion(bad_opinion)
+        drift = baseline.check_drift("test_case", "greenblatt", bad_score)
+        assert drift["has_regression"] is True
+        assert drift["drift"] > 0.10
+
+    def test_no_baseline_no_regression(self):
+        baseline = RegressionBaseline()
+        score = evaluate_opinion(_complete_opinion())
+        drift = baseline.check_drift("unknown", "greenblatt", score)
+        assert drift["has_regression"] is False
+        assert drift["reason"] == "no baseline"
