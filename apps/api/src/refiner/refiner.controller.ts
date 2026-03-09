@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { type RefinerService } from './refiner.service.js';
+import { RefinerService } from './refiner.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

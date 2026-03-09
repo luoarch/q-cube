@@ -3,7 +3,9 @@ import { Throttle } from '@nestjs/throttler';
 import { loginRequestSchema, refreshRequestSchema } from '@q3/shared-contracts';
 
 import { AuthGuard } from './auth.guard.js';
-import { type AuthService, type JwtPayload  } from './auth.service.js';
+import { AuthService } from './auth.service.js';
+
+import type { JwtPayload } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 
 @Controller('auth')

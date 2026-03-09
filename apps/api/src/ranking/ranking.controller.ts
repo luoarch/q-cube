@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { paginatedRankingSchema } from '@q3/shared-contracts';
 
-import { type RankingService } from './ranking.service.js';
+import { RankingService } from './ranking.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

@@ -6,10 +6,10 @@ import {
 } from '@q3/shared-contracts';
 import { desc, eq, sql } from 'drizzle-orm';
 
-import { type CacheService } from '../common/cache.service.js';
+import { CacheService } from '../common/cache.service.js';
 import { DB } from '../database/database.constants.js';
 import { assets, financialStatements, strategyRuns } from '../db/schema.js';
-import { type RankingService } from '../ranking/ranking.service.js';
+import { RankingService } from '../ranking/ranking.service.js';
 
 import type * as schema from '../db/schema.js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';

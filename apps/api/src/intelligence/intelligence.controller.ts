@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Param, UseGuards } from '@nestjs/common';
 
-import { type IntelligenceService } from './intelligence.service.js';
+import { IntelligenceService } from './intelligence.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

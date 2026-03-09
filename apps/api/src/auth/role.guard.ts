@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 
 import { ROLES_KEY } from './require-role.decorator.js';
 

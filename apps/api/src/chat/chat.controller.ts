@@ -14,8 +14,8 @@ import {
 import { createChatSessionSchema, sendMessageSchema } from '@q3/shared-contracts';
 import { eq } from 'drizzle-orm';
 
-import { type ChatService } from './chat.service.js';
-import { type CouncilService } from './council.service.js';
+import { ChatService } from './chat.service.js';
+import { CouncilService } from './council.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { DB } from '../database/database.constants.js';

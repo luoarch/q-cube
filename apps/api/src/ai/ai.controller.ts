@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { aiSuggestionsQuerySchema, updateReviewStatusSchema } from '@q3/shared-contracts';
 
-import { type AIService } from './ai.service.js';
+import { AIService } from './ai.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 

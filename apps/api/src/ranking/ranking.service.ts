@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { UNKNOWN_SECTOR, rankingItemSchema } from '@q3/shared-contracts';
 import { eq, desc, sql } from 'drizzle-orm';
 
-import { type CacheService } from '../common/cache.service.js';
+import { CacheService } from '../common/cache.service.js';
 import { DB } from '../database/database.constants.js';
 import { issuers, marketSnapshots, securities } from '../db/schema.js';
 

@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 
-import { type ComparisonService } from './comparison.service.js';
+import { ComparisonService } from './comparison.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 
