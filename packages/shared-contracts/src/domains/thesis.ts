@@ -1,0 +1,191 @@
+import { z } from 'zod';
+
+import { uuidSchema } from './_shared.js';
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+export const thesisBucketSchema = z.enum([
+  'A_DIRECT',
+  'B_INDIRECT',
+  'C_NEUTRAL',
+  'D_FRAGILE',
+]);
+export type ThesisBucket = z.infer<typeof thesisBucketSchema>;
+
+export const scoreSourceTypeSchema = z.enum([
+  'QUANTITATIVE',
+  'SECTOR_PROXY',
+  'RUBRIC_MANUAL',
+  'DERIVED',
+  'DEFAULT',
+]);
+export type ScoreSourceType = z.infer<typeof scoreSourceTypeSchema>;
+
+export const scoreConfidenceSchema = z.enum(['high', 'medium', 'low']);
+export type ScoreConfidence = z.infer<typeof scoreConfidenceSchema>;
+
+// ---------------------------------------------------------------------------
+// Provenance
+// ---------------------------------------------------------------------------
+
+export const scoreProvenanceSchema = z.object({
+  sourceType: scoreSourceTypeSchema,
+  sourceVersion: z.string(),
+  assessedAt: z.string(),
+  assessedBy: z.string().nullable(),
+  confidence: scoreConfidenceSchema,
+  evidenceRef: z.string().nullable(),
+});
+export type ScoreProvenance = z.infer<typeof scoreProvenanceSchema>;
+
+export const dimensionProvenanceSchema = z.record(
+  z.string(),
+  scoreProvenanceSchema,
+);
+export type DimensionProvenance = z.infer<typeof dimensionProvenanceSchema>;
+
+// ---------------------------------------------------------------------------
+// Eligibility
+// ---------------------------------------------------------------------------
+
+export const baseEligibilitySchema = z.object({
+  eligibleForPlan2: z.boolean(),
+  failedReasons: z.array(z.string()),
+  passedCoreScreening: z.boolean(),
+  hasValidFinancials: z.boolean(),
+  interestCoverage: z.number().nullable(),
+  debtToEbitda: z.number().nullable(),
+});
+export type BaseEligibility = z.infer<typeof baseEligibilitySchema>;
+
+// ---------------------------------------------------------------------------
+// Vectors
+// ---------------------------------------------------------------------------
+
+export const opportunityVectorSchema = z.object({
+  directCommodityExposureScore: z.number().min(0).max(100),
+  indirectCommodityExposureScore: z.number().min(0).max(100),
+  exportFxLeverageScore: z.number().min(0).max(100),
+  finalCommodityAffinityScore: z.number().min(0).max(100),
+});
+export type OpportunityVector = z.infer<typeof opportunityVectorSchema>;
+
+export const fragilityVectorSchema = z.object({
+  refinancingStressScore: z.number().min(0).max(100),
+  usdDebtExposureScore: z.number().min(0).max(100),
+  usdImportDependenceScore: z.number().min(0).max(100),
+  usdRevenueOffsetScore: z.number().min(0).max(100),
+  finalDollarFragilityScore: z.number().min(0).max(100),
+});
+export type FragilityVector = z.infer<typeof fragilityVectorSchema>;
+
+// ---------------------------------------------------------------------------
+// Feature schemas (F1 draft → B2 complete)
+// ---------------------------------------------------------------------------
+
+export const plan2FeatureDraftSchema = z.object({
+  issuerId: uuidSchema,
+  ticker: z.string(),
+  // eligibility inputs
+  passedCoreScreening: z.boolean(),
+  hasValidFinancials: z.boolean(),
+  interestCoverage: z.number().nullable(),
+  debtToEbitda: z.number().nullable(),
+  coreRankPercentile: z.number().min(0).max(100),
+  // opportunity (nullable — may not be computed yet)
+  directCommodityExposureScore: z.number().min(0).max(100).nullable(),
+  indirectCommodityExposureScore: z.number().min(0).max(100).nullable(),
+  exportFxLeverageScore: z.number().min(0).max(100).nullable(),
+  // fragility (nullable — may not be computed yet)
+  refinancingStressScore: z.number().min(0).max(100).nullable(),
+  usdDebtExposureScore: z.number().min(0).max(100).nullable(),
+  usdImportDependenceScore: z.number().min(0).max(100).nullable(),
+  usdRevenueOffsetScore: z.number().min(0).max(100).nullable(),
+  // provenance per dimension
+  provenance: dimensionProvenanceSchema,
+});
+export type Plan2FeatureDraft = z.infer<typeof plan2FeatureDraftSchema>;
+
+export const plan2FeatureInputSchema = z.object({
+  issuerId: uuidSchema,
+  ticker: z.string(),
+  // eligibility inputs
+  passedCoreScreening: z.boolean(),
+  hasValidFinancials: z.boolean(),
+  interestCoverage: z.number().nullable(),
+  debtToEbitda: z.number().nullable(),
+  coreRankPercentile: z.number().min(0).max(100),
+  // opportunity (required — B2 ensures all present)
+  directCommodityExposureScore: z.number().min(0).max(100),
+  indirectCommodityExposureScore: z.number().min(0).max(100),
+  exportFxLeverageScore: z.number().min(0).max(100),
+  // fragility (required)
+  refinancingStressScore: z.number().min(0).max(100),
+  usdDebtExposureScore: z.number().min(0).max(100),
+  usdImportDependenceScore: z.number().min(0).max(100),
+  usdRevenueOffsetScore: z.number().min(0).max(100),
+  // provenance per dimension
+  provenance: dimensionProvenanceSchema,
+});
+export type Plan2FeatureInput = z.infer<typeof plan2FeatureInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Explanation
+// ---------------------------------------------------------------------------
+
+export const plan2ExplanationSchema = z.object({
+  ticker: z.string(),
+  bucket: thesisBucketSchema,
+  thesisRankScore: z.number().min(0).max(100),
+  positives: z.array(z.string()),
+  negatives: z.array(z.string()),
+  summary: z.string(),
+});
+export type Plan2Explanation = z.infer<typeof plan2ExplanationSchema>;
+
+// ---------------------------------------------------------------------------
+// Ranking snapshot (full internal record per issuer)
+// ---------------------------------------------------------------------------
+
+export const plan2RankingSnapshotSchema = z.object({
+  issuerId: uuidSchema,
+  ticker: z.string(),
+  companyName: z.string(),
+  sector: z.string().nullable(),
+  eligible: z.boolean(),
+  eligibility: baseEligibilitySchema,
+  // vectors (nullable if ineligible)
+  opportunityVector: opportunityVectorSchema.nullable(),
+  fragilityVector: fragilityVectorSchema.nullable(),
+  // ranking (nullable if ineligible)
+  bucket: thesisBucketSchema.nullable(),
+  thesisRankScore: z.number().min(0).max(100).nullable(),
+  thesisRank: z.number().int().nullable(),
+  baseCoreScore: z.number().min(0).max(100),
+  // explanation
+  explanation: plan2ExplanationSchema.nullable(),
+  // provenance
+  provenance: dimensionProvenanceSchema,
+});
+export type Plan2RankingSnapshot = z.infer<typeof plan2RankingSnapshotSchema>;
+
+// ---------------------------------------------------------------------------
+// API response item (flat, for the ranking list)
+// ---------------------------------------------------------------------------
+
+export const plan2RankResponseItemSchema = z.object({
+  ticker: z.string(),
+  companyName: z.string(),
+  sector: z.string().nullable(),
+  bucket: thesisBucketSchema,
+  baseCoreScore: z.number(),
+  finalCommodityAffinityScore: z.number(),
+  finalDollarFragilityScore: z.number(),
+  thesisRankScore: z.number(),
+  thesisRank: z.number().int(),
+  positives: z.array(z.string()),
+  negatives: z.array(z.string()),
+});
+export type Plan2RankResponseItem = z.infer<typeof plan2RankResponseItemSchema>;

@@ -654,3 +654,87 @@ export const userContextProfiles = pgTable(
   },
   (t) => [unique('uq_user_context_profiles_user_tenant').on(t.userId, t.tenantId)],
 );
+
+// ---------------------------------------------------------------------------
+// Plan 2 — Global Thesis Layer
+// ---------------------------------------------------------------------------
+
+export const thesisBucketEnum = pgEnum('thesis_bucket', [
+  'A_DIRECT',
+  'B_INDIRECT',
+  'C_NEUTRAL',
+  'D_FRAGILE',
+]);
+
+export const plan2Runs = pgTable('plan2_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  strategyRunId: uuid('strategy_run_id')
+    .notNull()
+    .references(() => strategyRuns.id, { onDelete: 'cascade' }),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id, { onDelete: 'cascade' }),
+
+  // versioning
+  thesisConfigVersion: text('thesis_config_version').notNull(),
+  pipelineVersion: text('pipeline_version').notNull(),
+
+  // metadata
+  asOfDate: date('as_of_date').notNull(),
+  totalEligible: integer('total_eligible').notNull().default(0),
+  totalIneligible: integer('total_ineligible').notNull().default(0),
+  bucketDistributionJson: jsonb('bucket_distribution_json').notNull().default({}),
+
+  // lifecycle
+  status: text('status').notNull().default('pending'),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const plan2ThesisScores = pgTable(
+  'plan2_thesis_scores',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    plan2RunId: uuid('plan2_run_id')
+      .notNull()
+      .references(() => plan2Runs.id, { onDelete: 'cascade' }),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+
+    // eligibility
+    eligible: boolean('eligible').notNull(),
+    eligibilityJson: jsonb('eligibility_json').notNull(),
+
+    // opportunity vector (0-100)
+    directCommodityExposureScore: numeric('direct_commodity_exposure_score'),
+    indirectCommodityExposureScore: numeric('indirect_commodity_exposure_score'),
+    exportFxLeverageScore: numeric('export_fx_leverage_score'),
+    finalCommodityAffinityScore: numeric('final_commodity_affinity_score'),
+
+    // fragility vector (0-100)
+    refinancingStressScore: numeric('refinancing_stress_score'),
+    usdDebtExposureScore: numeric('usd_debt_exposure_score'),
+    usdImportDependenceScore: numeric('usd_import_dependence_score'),
+    usdRevenueOffsetScore: numeric('usd_revenue_offset_score'),
+    finalDollarFragilityScore: numeric('final_dollar_fragility_score'),
+
+    // ranking
+    bucket: text('bucket'),
+    thesisRankScore: numeric('thesis_rank_score'),
+    thesisRank: integer('thesis_rank'),
+
+    // provenance
+    featureInputJson: jsonb('feature_input_json').notNull(),
+    explanationJson: jsonb('explanation_json'),
+
+    // audit
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('uq_plan2_thesis_scores_run_issuer').on(t.plan2RunId, t.issuerId),
+  ],
+);

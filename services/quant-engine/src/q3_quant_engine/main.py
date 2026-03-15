@@ -18,6 +18,11 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
 
 app = FastAPI(title="Q3 Quant Engine", version="0.1.0", lifespan=lifespan)
 
+# Plan 2 internal API
+from q3_quant_engine.thesis.router import router as plan2_router  # noqa: E402
+
+app.include_router(plan2_router)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:

@@ -112,6 +112,13 @@ class SourceProvider(str, enum.Enum):
     yahoo = "yahoo"
 
 
+class ThesisBucket(str, enum.Enum):
+    A_DIRECT = "A_DIRECT"
+    B_INDIRECT = "B_INDIRECT"
+    C_NEUTRAL = "C_NEUTRAL"
+    D_FRAGILE = "D_FRAGILE"
+
+
 # ---------------------------------------------------------------------------
 # Existing enums (tenant-scoped)
 # ---------------------------------------------------------------------------
@@ -853,3 +860,90 @@ class AIResearchNote(Base):
     )
 
     suggestion: Mapped[AISuggestion] = relationship(back_populates="research_notes")
+
+
+# ---------------------------------------------------------------------------
+# Plan 2 — Global Thesis Layer
+# ---------------------------------------------------------------------------
+
+
+class Plan2Run(Base):
+    __tablename__ = "plan2_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    strategy_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("strategy_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # versioning
+    thesis_config_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    pipeline_version: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # metadata
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    total_eligible: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_ineligible: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bucket_distribution_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    # lifecycle
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Plan2ThesisScore(Base):
+    __tablename__ = "plan2_thesis_scores"
+    __table_args__ = (
+        UniqueConstraint("plan2_run_id", "issuer_id", name="uq_plan2_thesis_scores_run_issuer"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan2_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("plan2_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id"),
+        nullable=False,
+    )
+
+    # eligibility
+    eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    eligibility_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    # opportunity vector (0-100, NULL if ineligible)
+    direct_commodity_exposure_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    indirect_commodity_exposure_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    export_fx_leverage_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    final_commodity_affinity_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+
+    # fragility vector (0-100, NULL if ineligible)
+    refinancing_stress_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    usd_debt_exposure_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    usd_import_dependence_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    usd_revenue_offset_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    final_dollar_fragility_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+
+    # ranking (NULL if ineligible)
+    bucket: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    thesis_rank_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    thesis_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # provenance
+    feature_input_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    explanation_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # audit
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
