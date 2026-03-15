@@ -23,6 +23,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { RefinerModule } from './refiner/refiner.module.js';
 import { StrategyModule } from './strategy/strategy.module.js';
 import { UniverseModule } from './universe/universe.module.js';
+import { ThesisModule } from './thesis/thesis.module.js';
 import { UserContextModule } from './user-context/user-context.module.js';
 
 @Module({
@@ -51,6 +52,7 @@ import { UserContextModule } from './user-context/user-context.module.js';
     ComparisonModule,
     ChatModule,
     AIModule,
+    ThesisModule,
     UserContextModule,
   ],
   providers: [

@@ -172,6 +172,17 @@ export const plan2RankingSnapshotSchema = z.object({
 export type Plan2RankingSnapshot = z.infer<typeof plan2RankingSnapshotSchema>;
 
 // ---------------------------------------------------------------------------
+// Evidence quality
+// ---------------------------------------------------------------------------
+
+export const evidenceQualitySchema = z.enum([
+  'HIGH_EVIDENCE',
+  'MIXED_EVIDENCE',
+  'LOW_EVIDENCE',
+]);
+export type EvidenceQuality = z.infer<typeof evidenceQualitySchema>;
+
+// ---------------------------------------------------------------------------
 // API response item (flat, for the ranking list)
 // ---------------------------------------------------------------------------
 
@@ -185,7 +196,34 @@ export const plan2RankResponseItemSchema = z.object({
   finalDollarFragilityScore: z.number(),
   thesisRankScore: z.number(),
   thesisRank: z.number().int(),
+  evidenceQuality: evidenceQualitySchema,
   positives: z.array(z.string()),
   negatives: z.array(z.string()),
 });
 export type Plan2RankResponseItem = z.infer<typeof plan2RankResponseItemSchema>;
+
+// ---------------------------------------------------------------------------
+// API run metadata (returned alongside ranking)
+// ---------------------------------------------------------------------------
+
+export const plan2RunMetadataSchema = z.object({
+  runId: z.string(),
+  asOfDate: z.string(),
+  thesisConfigVersion: z.string(),
+  pipelineVersion: z.string(),
+  totalEligible: z.number().int(),
+  totalIneligible: z.number().int(),
+  bucketDistribution: z.record(z.string(), z.number().int()),
+  coverageSummary: z.object({
+    highPct: z.number(),
+    mixedPct: z.number(),
+    lowPct: z.number(),
+  }),
+});
+export type Plan2RunMetadata = z.infer<typeof plan2RunMetadataSchema>;
+
+export const plan2RankingResponseSchema = z.object({
+  meta: plan2RunMetadataSchema,
+  data: z.array(plan2RankResponseItemSchema),
+});
+export type Plan2RankingResponse = z.infer<typeof plan2RankingResponseSchema>;
