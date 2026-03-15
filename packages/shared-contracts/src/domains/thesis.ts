@@ -227,3 +227,49 @@ export const plan2RankingResponseSchema = z.object({
   data: z.array(plan2RankResponseItemSchema),
 });
 export type Plan2RankingResponse = z.infer<typeof plan2RankingResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Breakdown response (per-ticker detail)
+// ---------------------------------------------------------------------------
+
+export const dimensionBreakdownItemSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  score: z.number(),
+  weight: z.number(),
+  weightedContribution: z.number(),
+  sourceType: scoreSourceTypeSchema,
+  sourceVersion: z.string(),
+  confidence: scoreConfidenceSchema,
+  evidenceRef: z.string().nullable(),
+  isDefault: z.boolean(),
+  isDerived: z.boolean(),
+});
+export type DimensionBreakdownItem = z.infer<typeof dimensionBreakdownItemSchema>;
+
+export const plan2BreakdownResponseSchema = z.object({
+  ticker: z.string(),
+  companyName: z.string(),
+  sector: z.string().nullable(),
+  bucket: thesisBucketSchema,
+  thesisRank: z.number().int(),
+  thesisRankScore: z.number(),
+  evidenceQuality: evidenceQualitySchema,
+  // Score breakdown
+  baseCoreScore: z.number(),
+  finalCommodityAffinityScore: z.number(),
+  finalDollarFragilityScore: z.number(),
+  // Per-dimension detail
+  opportunityDimensions: z.array(dimensionBreakdownItemSchema),
+  fragilityDimensions: z.array(dimensionBreakdownItemSchema),
+  // Explanation
+  positives: z.array(z.string()),
+  negatives: z.array(z.string()),
+  summary: z.string(),
+  // Run context
+  runId: z.string(),
+  asOfDate: z.string(),
+  thesisConfigVersion: z.string(),
+  pipelineVersion: z.string(),
+});
+export type Plan2BreakdownResponse = z.infer<typeof plan2BreakdownResponseSchema>;

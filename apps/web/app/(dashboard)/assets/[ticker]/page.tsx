@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { use } from 'react';
 
 import { useAssetDetail } from '../../../../src/hooks/api/useAssetDetail';
+import { useThesisBreakdown } from '../../../../src/hooks/api/useThesisBreakdown';
+
+import type { Plan2BreakdownResponse, DimensionBreakdownItem, ThesisBucket, EvidenceQuality, ScoreSourceType } from '@q3/shared-contracts';
 
 function formatPct(v: number | null | undefined): string {
   if (v == null) return '—';
@@ -91,9 +94,225 @@ function QualityBadge({ score }: { score: number | null | undefined }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Thesis Breakdown components
+// ---------------------------------------------------------------------------
+
+const BUCKET_COLORS: Record<ThesisBucket, string> = {
+  A_DIRECT: '#22c55e',
+  B_INDIRECT: '#3b82f6',
+  C_NEUTRAL: '#94a3b8',
+  D_FRAGILE: '#ef4444',
+};
+
+const BUCKET_LABELS: Record<ThesisBucket, string> = {
+  A_DIRECT: 'A Direct',
+  B_INDIRECT: 'B Indirect',
+  C_NEUTRAL: 'C Neutral',
+  D_FRAGILE: 'D Fragile',
+};
+
+const EVIDENCE_COLORS: Record<EvidenceQuality, string> = {
+  HIGH_EVIDENCE: '#22c55e',
+  MIXED_EVIDENCE: '#fbbf24',
+  LOW_EVIDENCE: '#ef4444',
+};
+
+const SOURCE_COLORS: Record<ScoreSourceType, string> = {
+  QUANTITATIVE: '#22c55e',
+  SECTOR_PROXY: '#3b82f6',
+  RUBRIC_MANUAL: '#a855f7',
+  DERIVED: '#fbbf24',
+  DEFAULT: '#ef4444',
+};
+
+function SourceChip({ type, showWarning }: { type: ScoreSourceType; showWarning: boolean }) {
+  const color = SOURCE_COLORS[type];
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        padding: '1px 6px',
+        borderRadius: 6,
+        background: `${color}14`,
+        color,
+        letterSpacing: '0.02em',
+      }}
+      title={showWarning ? 'Score derivado de valor padrão — não reflete dados reais do emissor' : undefined}
+    >
+      {type}{showWarning ? ' *' : ''}
+    </span>
+  );
+}
+
+function DimensionRow({ dim }: { dim: DimensionBreakdownItem }) {
+  const barPct = Math.min(dim.score / 100, 1);
+  const barColor = dim.isDefault || dim.isDerived
+    ? '#64748b'
+    : barPct > 0.6 ? '#22c55e' : barPct > 0.3 ? 'var(--accent-gold)' : '#ef4444';
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 60px 60px 60px auto',
+        alignItems: 'center',
+        gap: '0.5rem',
+        padding: '0.4rem 0',
+        borderBottom: '1px solid var(--border-color)',
+        opacity: dim.isDefault || dim.isDerived ? 0.7 : 1,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{dim.label}</div>
+        {dim.evidenceRef && (
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{dim.evidenceRef}</div>
+        )}
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: 13, textAlign: 'right', fontWeight: 600 }}>
+        {dim.score.toFixed(1)}
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text-secondary)' }}>
+        x{dim.weight.toFixed(2)}
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text-secondary)' }}>
+        ={dim.weightedContribution.toFixed(1)}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div style={{ width: 60, height: 6, background: 'var(--grid-color)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${barPct * 100}%`, background: barColor, borderRadius: 3 }} />
+        </div>
+        <SourceChip type={dim.sourceType} showWarning={dim.isDefault || dim.isDerived} />
+      </div>
+    </div>
+  );
+}
+
+function ThesisBreakdownSection({ breakdown }: { breakdown: Plan2BreakdownResponse }) {
+  const bucketColor = BUCKET_COLORS[breakdown.bucket];
+  const evidenceColor = EVIDENCE_COLORS[breakdown.evidenceQuality];
+
+  const hasDefaultWarning = [
+    ...breakdown.opportunityDimensions,
+    ...breakdown.fragilityDimensions,
+  ].some((d) => d.isDefault || d.isDerived);
+
+  return (
+    <div
+      style={{
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 8,
+        padding: '1rem 1.25rem',
+        marginTop: '1rem',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Thesis Breakdown</h3>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: `${bucketColor}18`, color: bucketColor }}>
+          {BUCKET_LABELS[breakdown.bucket]}
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: `${evidenceColor}14`, color: evidenceColor }}>
+          {breakdown.evidenceQuality.replace('_', ' ')}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+          Rank #{breakdown.thesisRank} | Score {breakdown.thesisRankScore.toFixed(1)}
+        </span>
+      </div>
+
+      {/* Score summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div style={{ background: 'var(--bg-canvas)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Commodity Affinity</div>
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: '#22c55e' }}>{breakdown.finalCommodityAffinityScore.toFixed(1)}</div>
+        </div>
+        <div style={{ background: 'var(--bg-canvas)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Dollar Fragility</div>
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: '#fbbf24' }}>{breakdown.finalDollarFragilityScore.toFixed(1)}</div>
+        </div>
+        <div style={{ background: 'var(--bg-canvas)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Core Base</div>
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>{breakdown.baseCoreScore.toFixed(1)}</div>
+        </div>
+      </div>
+
+      {/* Opportunity vector */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.5px' }}>
+          Opportunity Vector
+        </div>
+        {breakdown.opportunityDimensions.map((dim) => (
+          <DimensionRow key={dim.key} dim={dim} />
+        ))}
+      </div>
+
+      {/* Fragility vector */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.5px' }}>
+          Fragility Vector
+        </div>
+        {breakdown.fragilityDimensions.map((dim) => (
+          <DimensionRow key={dim.key} dim={dim} />
+        ))}
+      </div>
+
+      {/* Default/Derived warning */}
+      {hasDefaultWarning && (
+        <div style={{ fontSize: 11, color: '#ef4444', padding: '0.4rem 0.6rem', background: 'rgba(239,68,68,0.06)', borderRadius: 6, marginBottom: '0.75rem' }}>
+          * Dimensões marcadas DEFAULT ou DERIVED usam valores padrão — não refletem dados reais do emissor.
+          A precisão dessas dimensões é limitada no MVP.
+        </div>
+      )}
+
+      {/* Explanation */}
+      {(breakdown.positives.length > 0 || breakdown.negatives.length > 0) && (
+        <div style={{ marginBottom: '0.75rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.5px' }}>
+            Rationale
+          </div>
+          {breakdown.positives.length > 0 && (
+            <ul style={{ margin: '0.25rem 0', paddingLeft: '1.25rem' }}>
+              {breakdown.positives.map((p, i) => (
+                <li key={i} style={{ fontSize: 12, color: '#22c55e', marginBottom: 2 }}>{p}</li>
+              ))}
+            </ul>
+          )}
+          {breakdown.negatives.length > 0 && (
+            <ul style={{ margin: '0.25rem 0', paddingLeft: '1.25rem' }}>
+              {breakdown.negatives.map((n, i) => (
+                <li key={i} style={{ fontSize: 12, color: '#ef4444', marginBottom: 2 }}>{n}</li>
+              ))}
+            </ul>
+          )}
+          {breakdown.summary && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: '0.4rem', fontStyle: 'italic' }}>
+              {breakdown.summary}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Run context footer */}
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', opacity: 0.7, display: 'flex', gap: '1rem', flexWrap: 'wrap', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
+        <span>as_of: {breakdown.asOfDate}</span>
+        <span>run: {breakdown.runId.slice(0, 8)}</span>
+        <span>config: {breakdown.thesisConfigVersion}</span>
+        <span>pipeline: {breakdown.pipelineVersion}</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function AssetDetailPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = use(params);
   const { data: asset, isLoading } = useAssetDetail(ticker);
+  const { data: breakdown } = useThesisBreakdown(ticker);
 
   if (isLoading) {
     return (
@@ -202,6 +421,9 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
             ))}
           </div>
         )}
+
+        {/* Thesis Breakdown */}
+        {breakdown && <ThesisBreakdownSection breakdown={breakdown} />}
       </div>
     </div>
   );
