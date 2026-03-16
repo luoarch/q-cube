@@ -738,3 +738,22 @@ export const plan2ThesisScores = pgTable(
     unique('uq_plan2_thesis_scores_run_issuer').on(t.plan2RunId, t.issuerId),
   ],
 );
+
+export const plan2RubricScores = pgTable('plan2_rubric_scores', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  issuerId: uuid('issuer_id')
+    .notNull()
+    .references(() => issuers.id),
+  dimensionKey: text('dimension_key').notNull(),
+  score: numeric('score').notNull(),
+  sourceType: text('source_type').notNull(),
+  sourceVersion: text('source_version').notNull(),
+  confidence: text('confidence').notNull().default('medium'),
+  evidenceRef: text('evidence_ref'),
+  rationale: text('rationale'),
+  assessedBy: text('assessed_by'),
+  assessedAt: date('assessed_at').notNull(),
+  supersededAt: timestamp('superseded_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

@@ -1,24 +1,28 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   plan2RankResponseItemSchema,
   plan2RankingResponseSchema,
   plan2BreakdownResponseSchema,
 } from '@q3/shared-contracts';
-import { eq, desc, and, isNotNull, sql } from 'drizzle-orm';
+import { eq, desc, and, isNull, isNotNull, sql } from 'drizzle-orm';
 
 import { CacheService } from '../common/cache.service.js';
 import { DB } from '../database/database.constants.js';
-import { plan2Runs, plan2ThesisScores, issuers, securities } from '../db/schema.js';
+import { plan2Runs, plan2ThesisScores, plan2RubricScores, issuers, securities } from '../db/schema.js';
 
 import type {
   Plan2RankingResponse,
   Plan2BreakdownResponse,
+  RubricScoreInput,
+  RubricScoreResponse,
   EvidenceQuality,
   DimensionBreakdownItem,
 } from '@q3/shared-contracts';
 import type * as schema from '../db/schema.js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+const AI_ASSISTANT_URL = process.env.AI_ASSISTANT_URL ?? 'http://localhost:8400';
+const QUANT_ENGINE_URL = process.env.QUANT_ENGINE_URL ?? 'http://localhost:8100';
 const THESIS_CACHE_TTL = 300; // 5 minutes
 
 const HIGH_SOURCE_TYPES = new Set(['QUANTITATIVE', 'RUBRIC_MANUAL']);
@@ -108,8 +112,26 @@ function buildDimensionItem(
   };
 }
 
+export interface RubricSuggestion {
+  suggestionId: string;
+  issuerId: string;
+  ticker: string;
+  dimensionKey: string;
+  suggestedScore: number;
+  confidence: string;
+  rationale: string;
+  evidenceRef: string;
+  keySignals: string[];
+  uncertaintyFactors: string[];
+  modelUsed: string;
+  promptVersion: string;
+  costUsd: number;
+}
+
 @Injectable()
 export class ThesisService {
+  private readonly logger = new Logger(ThesisService.name);
+
   constructor(
     @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
     private readonly cache: CacheService,
@@ -394,5 +416,228 @@ export class ThesisService {
       },
       data,
     });
+  }
+
+  async getRubrics(
+    _tenantId: string,
+    ticker: string,
+  ): Promise<{ issuerId: string; ticker: string; rubrics: RubricScoreResponse[] } | null> {
+    // Resolve ticker → issuerId (issuers are global CVM data, tenant scoped by AuthGuard)
+    const issuer = await this.db
+      .select({ issuerId: issuers.id })
+      .from(issuers)
+      .innerJoin(securities, and(eq(securities.issuerId, issuers.id), eq(securities.isPrimary, true)))
+      .where(eq(securities.ticker, ticker))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!issuer) return null;
+
+    const rows = await this.db
+      .select()
+      .from(plan2RubricScores)
+      .where(and(eq(plan2RubricScores.issuerId, issuer.issuerId), isNull(plan2RubricScores.supersededAt)))
+      .orderBy(plan2RubricScores.dimensionKey);
+
+    return {
+      issuerId: issuer.issuerId,
+      ticker,
+      rubrics: rows.map((r) => ({
+        id: r.id,
+        issuerId: r.issuerId,
+        dimensionKey: r.dimensionKey,
+        score: Number(r.score),
+        sourceType: r.sourceType,
+        sourceVersion: r.sourceVersion,
+        confidence: r.confidence,
+        evidenceRef: r.evidenceRef,
+        rationale: r.rationale,
+        assessedBy: r.assessedBy,
+        assessedAt: String(r.assessedAt),
+        supersededAt: r.supersededAt ? r.supersededAt.toISOString() : null,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async upsertRubric(_tenantId: string, input: RubricScoreInput): Promise<RubricScoreResponse> {
+    // Verify issuer exists (issuers are global CVM data, tenant scoped by AuthGuard)
+    const issuer = await this.db
+      .select({ id: issuers.id })
+      .from(issuers)
+      .where(eq(issuers.id, input.issuerId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!issuer) {
+      throw new Error(`Issuer ${input.issuerId} not found`);
+    }
+
+    // Supersede existing active score for this dimension
+    await this.db
+      .update(plan2RubricScores)
+      .set({ supersededAt: new Date() })
+      .where(
+        and(
+          eq(plan2RubricScores.issuerId, input.issuerId),
+          eq(plan2RubricScores.dimensionKey, input.dimensionKey),
+          isNull(plan2RubricScores.supersededAt),
+        ),
+      );
+
+    // Insert new active score
+    const rows = await this.db
+      .insert(plan2RubricScores)
+      .values({
+        issuerId: input.issuerId,
+        dimensionKey: input.dimensionKey,
+        score: String(input.score),
+        sourceType: input.sourceType,
+        sourceVersion: input.sourceVersion,
+        confidence: input.confidence,
+        evidenceRef: input.evidenceRef ?? null,
+        rationale: input.rationale ?? null,
+        assessedBy: input.assessedBy ?? null,
+        assessedAt: input.assessedAt,
+      })
+      .returning();
+
+    const row = rows[0]!;
+
+    return {
+      id: row.id,
+      issuerId: row.issuerId,
+      dimensionKey: row.dimensionKey,
+      score: Number(row.score),
+      sourceType: row.sourceType,
+      sourceVersion: row.sourceVersion,
+      confidence: row.confidence,
+      evidenceRef: row.evidenceRef,
+      rationale: row.rationale,
+      assessedBy: row.assessedBy,
+      assessedAt: String(row.assessedAt),
+      supersededAt: row.supersededAt ? row.supersededAt.toISOString() : null,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async suggestRubric(tenantId: string, ticker: string, dimensionKey = 'usd_debt_exposure'): Promise<RubricSuggestion> {
+    const res = await fetch(`${AI_ASSISTANT_URL}/rubric/suggest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker,
+        tenant_id: tenantId,
+        dimension_key: dimensionKey,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      this.logger.warn(`Rubric suggest proxy failed: ${res.status} ${errorText}`);
+      throw new Error(`AI suggestion failed: ${res.status}`);
+    }
+
+    const data = (await res.json()) as {
+      suggestion_id: string;
+      issuer_id: string;
+      ticker: string;
+      dimension_key: string;
+      suggested_score: number;
+      confidence: string;
+      rationale: string;
+      evidence_ref: string;
+      key_signals: string[];
+      uncertainty_factors: string[];
+      model_used: string;
+      prompt_version: string;
+      cost_usd: number;
+    };
+
+    return {
+      suggestionId: data.suggestion_id,
+      issuerId: data.issuer_id,
+      ticker: data.ticker,
+      dimensionKey: data.dimension_key,
+      suggestedScore: data.suggested_score,
+      confidence: data.confidence,
+      rationale: data.rationale,
+      evidenceRef: data.evidence_ref,
+      keySignals: data.key_signals,
+      uncertaintyFactors: data.uncertainty_factors,
+      modelUsed: data.model_used,
+      promptVersion: data.prompt_version,
+      costUsd: data.cost_usd,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // F3.2 — Monitoring proxy (quant-engine)
+  // ---------------------------------------------------------------------------
+
+  private async getLatestRunId(tenantId: string): Promise<string | null> {
+    const row = await this.db
+      .select({ id: plan2Runs.id })
+      .from(plan2Runs)
+      .where(and(eq(plan2Runs.tenantId, tenantId), eq(plan2Runs.status, 'completed')))
+      .orderBy(desc(plan2Runs.createdAt))
+      .limit(1)
+      .then((rows) => rows[0]);
+    return row ? String(row.id) : null;
+  }
+
+  async getMonitoringSummary(tenantId: string): Promise<unknown> {
+    const runId = await this.getLatestRunId(tenantId);
+    if (!runId) return null;
+
+    const res = await fetch(`${QUANT_ENGINE_URL}/plan2/runs/${runId}/monitoring`);
+    if (!res.ok) {
+      this.logger.warn(`Monitoring proxy failed: ${res.status}`);
+      throw new Error(`Monitoring request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async getDrift(tenantId: string, vsRunId?: string): Promise<unknown> {
+    const runId = await this.getLatestRunId(tenantId);
+    if (!runId) return null;
+
+    const params = vsRunId ? `?vs_run_id=${vsRunId}` : '';
+    const res = await fetch(`${QUANT_ENGINE_URL}/plan2/runs/${runId}/drift${params}`);
+    if (!res.ok) {
+      this.logger.warn(`Drift proxy failed: ${res.status}`);
+      throw new Error(`Drift request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async getRubricAging(staleDays = 30): Promise<unknown> {
+    const res = await fetch(`${QUANT_ENGINE_URL}/plan2/rubrics/aging?stale_days=${staleDays}`);
+    if (!res.ok) {
+      this.logger.warn(`Rubric aging proxy failed: ${res.status}`);
+      throw new Error(`Rubric aging request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async getReviewQueue(staleDays = 30): Promise<unknown> {
+    const res = await fetch(`${QUANT_ENGINE_URL}/plan2/rubrics/review-queue?stale_days=${staleDays}`);
+    if (!res.ok) {
+      this.logger.warn(`Review queue proxy failed: ${res.status}`);
+      throw new Error(`Review queue request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async getAlerts(tenantId: string, staleDays = 30): Promise<unknown> {
+    const runId = await this.getLatestRunId(tenantId);
+    if (!runId) return null;
+
+    const res = await fetch(`${QUANT_ENGINE_URL}/plan2/runs/${runId}/alerts?stale_days=${staleDays}`);
+    if (!res.ok) {
+      this.logger.warn(`Alerts proxy failed: ${res.status}`);
+      throw new Error(`Alerts request failed: ${res.status}`);
+    }
+    return res.json();
   }
 }

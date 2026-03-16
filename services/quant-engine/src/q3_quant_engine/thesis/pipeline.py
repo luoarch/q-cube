@@ -22,6 +22,7 @@ from q3_shared_models.entities import (
     Issuer,
     MetricCode,
     PeriodType,
+    Plan2RubricScore,
     Plan2Run,
     Plan2ThesisScore,
     StatementLine,
@@ -32,7 +33,7 @@ from q3_quant_engine.thesis.features.draft_builder import (
     IssuerFeatureData,
     build_feature_draft,
 )
-from q3_quant_engine.thesis.input_assembly import complete_feature_input
+from q3_quant_engine.thesis.input_assembly import RubricEntry, RubricMap, complete_feature_input
 from q3_quant_engine.thesis.scoring import (
     assign_thesis_bucket,
     compute_final_commodity_affinity_score,
@@ -47,7 +48,9 @@ from q3_quant_engine.thesis.types import (
     OpportunityVector,
     Plan2FeatureInput,
     Plan2RankingSnapshot,
+    ScoreConfidence,
     ScoreProvenance,
+    ScoreSourceType,
 )
 
 logger = logging.getLogger(__name__)
@@ -170,6 +173,54 @@ def _issuer_ticker(issuer: Issuer, session: Session | None = None) -> str:
             return ticker
 
     return issuer.cvm_code
+
+
+def _load_rubrics(
+    session: Session,
+    issuer_ids: list[uuid.UUID],
+) -> dict[str, RubricMap]:
+    """Load active rubric scores for all issuers in the universe.
+
+    Returns: issuer_id_str → {dimension_key → RubricEntry}
+    """
+    if not issuer_ids:
+        return {}
+
+    rows = session.execute(
+        select(
+            Plan2RubricScore.issuer_id,
+            Plan2RubricScore.dimension_key,
+            Plan2RubricScore.score,
+            Plan2RubricScore.source_type,
+            Plan2RubricScore.source_version,
+            Plan2RubricScore.confidence,
+            Plan2RubricScore.evidence_ref,
+            Plan2RubricScore.assessed_at,
+            Plan2RubricScore.assessed_by,
+        ).where(
+            Plan2RubricScore.issuer_id.in_(issuer_ids),
+            Plan2RubricScore.superseded_at.is_(None),
+        )
+    ).all()
+
+    result: dict[str, RubricMap] = {}
+    for row in rows:
+        issuer_key = str(row[0])
+        dim_key = row[1]
+        entry = RubricEntry(
+            score=float(row[2]),
+            source_type=ScoreSourceType(row[3]),
+            source_version=row[4],
+            confidence=ScoreConfidence(row[5]) if row[5] else ScoreConfidence.MEDIUM,
+            evidence_ref=row[6],
+            assessed_at=row[7].isoformat() if row[7] else None,
+            assessed_by=row[8],
+        )
+        if issuer_key not in result:
+            result[issuer_key] = {}
+        result[issuer_key][dim_key] = entry
+
+    return result
 
 
 def _score_eligible_issuer(
@@ -367,6 +418,10 @@ def run_plan2_pipeline(
     session.add(plan2_run)
     session.flush()  # get the id assigned
 
+    # Load rubric scores for all issuers in the universe
+    all_issuer_ids = [issuer.id for issuer, _, _ in issuer_universe]
+    rubrics_by_issuer = _load_rubrics(session, all_issuer_ids)
+
     snapshots: list[Plan2RankingSnapshot] = []
     feature_inputs: dict[str, dict] = {}  # issuer_id → feature_input_json
     total_eligible = 0
@@ -405,8 +460,9 @@ def run_plan2_pipeline(
             }
             continue
 
-        # 4. B2: complete draft → input
-        feature_input = complete_feature_input(draft, as_of_str)
+        # 4. B2: complete draft → input (with rubrics if available)
+        issuer_rubrics = rubrics_by_issuer.get(issuer_id_str, {})
+        feature_input = complete_feature_input(draft, as_of_str, rubrics=issuer_rubrics)
 
         # 5. A: score eligible issuer
         snapshot = _score_eligible_issuer(

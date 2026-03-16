@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from q3_quant_engine.thesis.input_assembly import (
     INPUT_ASSEMBLY_VERSION,
+    RubricEntry,
     complete_feature_input,
 )
 from q3_quant_engine.thesis.types import (
@@ -319,3 +320,96 @@ class TestFullyPopulatedDraft:
         assert result.usd_debt_exposure_score == 50.0
         assert result.usd_import_dependence_score == 40.0
         assert result.usd_revenue_offset_score == 70.0
+
+
+class TestRubricOverrides:
+    """Rubric scores override defaults but not F1 values."""
+
+    def _rubric(self, score: float, source: str = "RUBRIC_MANUAL") -> RubricEntry:
+        return RubricEntry(
+            score=score,
+            source_type=ScoreSourceType(source),
+            source_version="rubric-test-v1",
+            confidence=ScoreConfidence.MEDIUM,
+            evidence_ref="test-evidence",
+            assessed_at=AS_OF,
+            assessed_by="tester",
+        )
+
+    def test_rubric_overrides_default_usd_debt(self) -> None:
+        rubrics = {"usd_debt_exposure": self._rubric(75.0)}
+        result = complete_feature_input(
+            _make_draft(usd_debt_exposure_score=None), AS_OF, rubrics=rubrics,
+        )
+        assert result.usd_debt_exposure_score == 75.0
+
+    def test_rubric_provenance_recorded(self) -> None:
+        rubrics = {"usd_debt_exposure": self._rubric(75.0)}
+        result = complete_feature_input(
+            _make_draft(usd_debt_exposure_score=None), AS_OF, rubrics=rubrics,
+        )
+        prov = result.provenance["usd_debt_exposure"]
+        assert prov.source_type == ScoreSourceType.RUBRIC_MANUAL
+        assert prov.source_version == "rubric-test-v1"
+        assert prov.confidence == ScoreConfidence.MEDIUM
+        assert prov.evidence_ref == "test-evidence"
+        assert prov.assessed_by == "tester"
+
+    def test_rubric_does_not_override_f1(self) -> None:
+        """F1 value (not None) takes priority over rubric."""
+        rubrics = {"refinancing_stress": self._rubric(99.0)}
+        result = complete_feature_input(
+            _make_draft(refinancing_stress_score=45.0), AS_OF, rubrics=rubrics,
+        )
+        assert result.refinancing_stress_score == 45.0
+
+    def test_rubric_overrides_default_usd_import(self) -> None:
+        rubrics = {"usd_import_dependence": self._rubric(60.0)}
+        result = complete_feature_input(
+            _make_draft(usd_import_dependence_score=None), AS_OF, rubrics=rubrics,
+        )
+        assert result.usd_import_dependence_score == 60.0
+
+    def test_rubric_overrides_derived_usd_revenue(self) -> None:
+        """Rubric beats derived (direct >= 70 derivation)."""
+        rubrics = {"usd_revenue_offset": self._rubric(85.0)}
+        result = complete_feature_input(
+            _make_draft(direct_commodity_exposure_score=90.0, usd_revenue_offset_score=None),
+            AS_OF, rubrics=rubrics,
+        )
+        assert result.usd_revenue_offset_score == 85.0
+
+    def test_rubric_overrides_derived_export_fx(self) -> None:
+        """Rubric beats derived export_fx_leverage."""
+        rubrics = {"export_fx_leverage": self._rubric(50.0)}
+        result = complete_feature_input(
+            _make_draft(direct_commodity_exposure_score=80.0, export_fx_leverage_score=None),
+            AS_OF, rubrics=rubrics,
+        )
+        assert result.export_fx_leverage_score == 50.0
+
+    def test_multiple_rubrics_applied(self) -> None:
+        rubrics = {
+            "usd_debt_exposure": self._rubric(70.0),
+            "usd_import_dependence": self._rubric(55.0),
+            "usd_revenue_offset": self._rubric(40.0),
+        }
+        result = complete_feature_input(
+            _make_draft(
+                usd_debt_exposure_score=None,
+                usd_import_dependence_score=None,
+                usd_revenue_offset_score=None,
+            ),
+            AS_OF, rubrics=rubrics,
+        )
+        assert result.usd_debt_exposure_score == 70.0
+        assert result.usd_import_dependence_score == 55.0
+        assert result.usd_revenue_offset_score == 40.0
+
+    def test_ai_assisted_rubric(self) -> None:
+        rubrics = {"usd_debt_exposure": self._rubric(65.0, source="AI_ASSISTED")}
+        result = complete_feature_input(
+            _make_draft(usd_debt_exposure_score=None), AS_OF, rubrics=rubrics,
+        )
+        assert result.usd_debt_exposure_score == 65.0
+        assert result.provenance["usd_debt_exposure"].source_type == ScoreSourceType.AI_ASSISTED

@@ -122,6 +122,7 @@ const SOURCE_COLORS: Record<ScoreSourceType, string> = {
   QUANTITATIVE: '#22c55e',
   SECTOR_PROXY: '#3b82f6',
   RUBRIC_MANUAL: '#a855f7',
+  AI_ASSISTED: '#8b5cf6',
   DERIVED: '#fbbf24',
   DEFAULT: '#ef4444',
 };

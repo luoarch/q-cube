@@ -437,6 +437,181 @@ def _serialize_opinion(o: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Rubric Suggestion (F2.2.1)
+# ---------------------------------------------------------------------------
+
+
+class RubricSuggestRequest(BaseModel):
+    ticker: str
+    tenant_id: str
+    dimension_key: str = "usd_debt_exposure"
+
+
+class RubricSuggestResponse(BaseModel):
+    suggestion_id: str
+    issuer_id: str
+    ticker: str
+    dimension_key: str
+    suggested_score: int
+    confidence: str
+    rationale: str
+    evidence_ref: str
+    key_signals: list[str]
+    uncertainty_factors: list[str]
+    model_used: str
+    prompt_version: str
+    cost_usd: float
+
+
+def _build_rubric_issuer_data(ticker: str) -> dict | None:
+    """Assemble issuer financial data for rubric scoring prompt."""
+    from q3_shared_models.entities import (
+        ComputedMetric,
+        Issuer,
+        Security,
+        StatementLine,
+    )
+
+    with SessionLocal() as session:
+        security = session.query(Security).filter_by(ticker=ticker, is_primary=True).first()
+        if not security:
+            return None
+
+        issuer = session.query(Issuer).filter_by(id=security.issuer_id).first()
+        if not issuer:
+            return None
+
+        # Latest computed metrics
+        metrics = (
+            session.query(ComputedMetric)
+            .filter_by(issuer_id=issuer.id)
+            .order_by(ComputedMetric.reference_date.desc())
+            .limit(20)
+            .all()
+        )
+
+        computed: dict[str, float | None] = {}
+        for m in metrics:
+            code = m.metric_code if isinstance(m.metric_code, str) else m.metric_code.value
+            if code not in computed:
+                val = float(m.value) if m.value is not None else None
+                computed[code] = val
+
+        # Latest debt-related statement lines
+        debt_keys = [
+            "short_term_debt", "long_term_debt", "cash_and_equivalents",
+            "financial_result", "total_assets", "shareholders_equity",
+            "net_revenue", "ebit",
+        ]
+        latest_stmts = (
+            session.query(StatementLine)
+            .filter(
+                StatementLine.issuer_id == issuer.id,
+                StatementLine.canonical_key.in_(debt_keys),
+                StatementLine.scope == "con",
+            )
+            .order_by(StatementLine.reference_date.desc())
+            .limit(30)
+            .all()
+        )
+
+        financials: dict[str, float | None] = {}
+        for sl in latest_stmts:
+            key = sl.canonical_key if isinstance(sl.canonical_key, str) else sl.canonical_key.value
+            if key not in financials and sl.normalized_value is not None:
+                financials[key] = float(sl.normalized_value)
+
+        # Sector context heuristic
+        sector = issuer.sector or ""
+        sector_lower = sector.lower()
+        context_parts: list[str] = []
+        if any(kw in sector_lower for kw in ["petróleo", "gás", "mineração", "mineral", "extração"]):
+            context_parts.append("Commodity exporter — typically has significant USD-denominated debt and revenue.")
+        elif any(kw in sector_lower for kw in ["metalurgia", "siderurgia"]):
+            context_parts.append("Steel/metals sector — may have USD debt from equipment/ore imports, some export revenue.")
+        elif any(kw in sector_lower for kw in ["agricultura", "alimentos"]):
+            context_parts.append("Agriculture/food — export-oriented may have USD revenue as offset; processing-focused may have import costs.")
+        elif any(kw in sector_lower for kw in ["farmacêutico"]):
+            context_parts.append("Pharma — imported APIs and ingredients are typically USD-priced. Debt may include USD bonds.")
+        elif any(kw in sector_lower for kw in ["máquina", "equip", "veíc"]):
+            context_parts.append("Machinery/equipment — may have USD component costs and export revenue.")
+        elif any(kw in sector_lower for kw in ["energia", "elétrica"]):
+            context_parts.append("Electricity — mostly BRL-denominated with regulated revenue. Some USD debt for infrastructure.")
+        elif any(kw in sector_lower for kw in ["banco", "financ", "segur"]):
+            context_parts.append("Financial sector — may have sophisticated USD hedging. Exposure varies by institution type.")
+        elif any(kw in sector_lower for kw in ["construção", "imobil"]):
+            context_parts.append("Construction/real estate — mostly domestic BRL operations. Low typical USD exposure.")
+        elif any(kw in sector_lower for kw in ["educação"]):
+            context_parts.append("Education — domestic BRL revenue. May have USD tech licensing/debt costs.")
+        elif any(kw in sector_lower for kw in ["telecom"]):
+            context_parts.append("Telecom — equipment imports may be USD. Revenue mostly BRL. Infrastructure debt may include USD.")
+
+        return {
+            "ticker": ticker,
+            "company_name": issuer.trade_name or issuer.legal_name,
+            "sector": issuer.sector or "",
+            "subsector": issuer.subsector or "",
+            "issuer_id": str(issuer.id),
+            "financials": financials,
+            "computed_metrics": computed,
+            "sector_context": " ".join(context_parts) if context_parts else "",
+        }
+
+
+@app.post("/rubric/suggest", response_model=RubricSuggestResponse)
+def suggest_rubric(req: RubricSuggestRequest) -> RubricSuggestResponse:
+    """Generate an AI suggestion for a rubric dimension score."""
+    import uuid as _uuid
+
+    from q3_ai_assistant.llm.pools import build_specialist_pool
+    from q3_ai_assistant.modules.rubric_suggester import SUPPORTED_DIMENSIONS, suggest_dimension
+
+    if req.dimension_key not in SUPPORTED_DIMENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_DIMENSIONS))
+        raise HTTPException(status_code=400, detail=f"Dimension '{req.dimension_key}' not supported. Supported: {supported}")
+
+    issuer_data = _build_rubric_issuer_data(req.ticker.upper())
+    if not issuer_data:
+        raise HTTPException(status_code=404, detail=f"Ticker '{req.ticker}' not found.")
+
+    router = build_specialist_pool(settings)
+
+    with SessionLocal() as db_session:
+        suggestion = suggest_dimension(
+            db_session,
+            router,
+            cache=None,
+            dimension_key=req.dimension_key,
+            tenant_id=_uuid.UUID(req.tenant_id),
+            issuer_id=_uuid.UUID(issuer_data["issuer_id"]),
+            issuer_data=issuer_data,
+        )
+        db_session.commit()
+
+        out = suggestion.structured_output or {}
+        return RubricSuggestResponse(
+            suggestion_id=str(suggestion.id),
+            issuer_id=issuer_data["issuer_id"],
+            ticker=req.ticker.upper(),
+            dimension_key=req.dimension_key,
+            suggested_score=out.get("suggested_score", 30),
+            confidence=out.get("confidence", "low"),
+            rationale=out.get("rationale", ""),
+            evidence_ref=out.get("evidence_ref", ""),
+            key_signals=out.get("key_signals", []),
+            uncertainty_factors=out.get("uncertainty_factors", []),
+            model_used=suggestion.model_used or "",
+            prompt_version=suggestion.prompt_version or "",
+            cost_usd=float(suggestion.cost_usd or 0),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Budget
+# ---------------------------------------------------------------------------
+
+
 class BudgetStatusRequest(BaseModel):
     tenant_id: str
     session_id: str | None = None

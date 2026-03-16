@@ -742,6 +742,7 @@ class AIModule(str, enum.Enum):
     ranking_explainer = "ranking_explainer"
     backtest_narrator = "backtest_narrator"
     metric_explainer = "metric_explainer"
+    rubric_suggester = "rubric_suggester"
 
 
 class ReviewStatus(str, enum.Enum):
@@ -947,3 +948,26 @@ class Plan2ThesisScore(Base):
 
     # audit
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Plan2RubricScore(Base):
+    __tablename__ = "plan2_rubric_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id"),
+        nullable=False,
+    )
+    dimension_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    score: Mapped[float] = mapped_column(Numeric, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(10), nullable=False, server_default="medium")
+    evidence_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assessed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    assessed_at: Mapped[date] = mapped_column(Date, nullable=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

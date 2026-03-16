@@ -18,6 +18,7 @@ export const scoreSourceTypeSchema = z.enum([
   'QUANTITATIVE',
   'SECTOR_PROXY',
   'RUBRIC_MANUAL',
+  'AI_ASSISTED',
   'DERIVED',
   'DEFAULT',
 ]);
@@ -246,6 +247,45 @@ export const dimensionBreakdownItemSchema = z.object({
   isDerived: z.boolean(),
 });
 export type DimensionBreakdownItem = z.infer<typeof dimensionBreakdownItemSchema>;
+
+// ---------------------------------------------------------------------------
+// Rubric scores (manual/AI dimension scoring)
+// ---------------------------------------------------------------------------
+
+export const rubricScoreInputSchema = z.object({
+  issuerId: uuidSchema,
+  dimensionKey: z.string(),
+  score: z.number().min(0).max(100),
+  sourceType: z.enum(['RUBRIC_MANUAL', 'AI_ASSISTED']),
+  sourceVersion: z.string(),
+  confidence: scoreConfidenceSchema,
+  evidenceRef: z.string().nullable().optional(),
+  rationale: z.string().nullable().optional(),
+  assessedBy: z.string().nullable().optional(),
+  assessedAt: z.string(),
+});
+export type RubricScoreInput = z.infer<typeof rubricScoreInputSchema>;
+
+export const rubricScoreResponseSchema = z.object({
+  id: uuidSchema,
+  issuerId: uuidSchema,
+  dimensionKey: z.string(),
+  score: z.number(),
+  sourceType: z.string(),
+  sourceVersion: z.string(),
+  confidence: z.string(),
+  evidenceRef: z.string().nullable(),
+  rationale: z.string().nullable(),
+  assessedBy: z.string().nullable(),
+  assessedAt: z.string(),
+  supersededAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type RubricScoreResponse = z.infer<typeof rubricScoreResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Breakdown response (per-ticker detail)
+// ---------------------------------------------------------------------------
 
 export const plan2BreakdownResponseSchema = z.object({
   ticker: z.string(),

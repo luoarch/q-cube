@@ -382,15 +382,15 @@ NEW (Micro Feature A — scoring puro, sem DB):
 
 ### 14. Current Status
 
-**Phase:** Wave 1 BUILD COMPLETE — MF-A + MF-B1 concluidos. MF-F1 pendente.
-**Tech Lead approval:** 2026-03-15. SSOT definitivo: este shaping.md + spec-01 a spec-04 neste diretorio.
+**Phase:** OPERATIONALLY COMPLETE — Plano 2 internal v2
+**Tech Lead approval:** 2026-03-15. Final approval: F2.3 closed, F2 closed, Plano 2 v2 approved.
 
 **Artefatos entregues:**
 - `spec-01-universe-eligibility.md` — responde Q1-4, 15-19 + assinatura canonica de eligibility (Redline 1)
 - `spec-02-feature-semantics.md` — responde Q5-7, 25-28, 34-37
 - `spec-03-dependency-graph.md` — responde Q8-14, 29-30 + ownership table (Redlines 2, 3)
 - `spec-04-versioning-provenance.md` — responde Q20-24, 31-33 + plan2_runs (Redline 4)
-- `shaping.md` (este arquivo) — v3 com todos os redlines aplicados
+- `shaping.md` (este arquivo) — v4 final
 
 **Decisoes-mae resolvidas:**
 1. Universo = todos os ativos que passam no core screening (NAO top 30)
@@ -398,29 +398,120 @@ NEW (Micro Feature A — scoring puro, sem DB):
 3. Cada feature tem definicao, fonte, formula, fallback e provenance documentados
 4. Feature Engineering (0-100 com provenance) → Scoring Engine (matematica pura) → Output
 
-**Redlines corrigidos (v3):**
-1. Assinatura canonica de eligibility: `check_base_eligibility(passed_core_screening, has_valid_financials, interest_coverage, debt_to_ebitda) -> BaseEligibility` com `failed_reasons[]`. Replicada em spec-01 + shaping scopes.
-2. Dono da completude do input: **Opcao B aceita.** F1 entrega `Plan2FeatureDraft` (parcial). B2 completa defaults/derivados e monta `Plan2FeatureInput` final. A recebe input completo.
-3. Dono unico da explanation: **MF-A** (pure function `generate_explanation()`). B2 persiste. D/E exibem. "geracao em B2" removido de todos os docs.
-4. Identidade de persistencia: **`plan2_runs`** criada como entidade de execucao separada. `plan2_thesis_scores` referencia `plan2_run_id` (nao strategy_run_id direto). UNIQUE(plan2_run_id, issuer_id). Recalcular = nova run, historico preservado.
-
 **Completed:**
 - MF-A Scope 1: thesis.ts — 13 Zod schemas, build passa ✓
 - MF-A Scope 2: types.py + config.py + eligibility.py — mypy clean ✓
 - MF-A Scope 3: scoring.py — 6 pure functions, mypy clean, ruff clean ✓
 - MF-A Scope 4: 43 testes passando (13 eligibility + 30 scoring) ✓
 - MF-B1: SQLAlchemy models (Plan2Run, Plan2ThesisScore, ThesisBucket enum), Drizzle schema, Alembic migration ✓
+- MF-F1: Feature Engineering — sector proxy maps + refinancingStress quantitativo ✓
+- MF-B2: Pipeline execution — Celery task, feature draft → complete input → score → persist ✓
+- MF-C: API endpoints — GET /thesis-rank, GET /thesis-rank/:ticker, rubric CRUD, AI suggest proxy ✓
+- MF-D: Web UI — toggle Core/Thesis, bucket badges, score column, rubric page ✓
+- MF-F2: Rubric System — AI-assisted suggestions for 3 USD dimensions, review queue ✓
+  - F2.2.1: usd_debt_exposure (LLM suggestion + human review) ✓
+  - F2.2.2: usd_import_dependence ✓
+  - F2.2.3: usd_revenue_offset (inverted dimension) ✓
+- MF-F2.3: Controlled expansion — full trio coverage 98/98 ✓
+  - Batch 1: 17 A_DIRECT + B_INDIRECT (22→39/98) ✓
+  - Batch 2: 30 C_NEUTRAL top-half (39→69/98) ✓
+  - Batch 3: 29 C_NEUTRAL bottom (21 auto Group A + 8 reviewed Group B) (69→98/98) ✓
 - Regressao: 217 testes existentes do quant-engine continuam passando ✓
+- F3.1: Monitoring foundation — 4 API endpoints (monitoring, drift, aging, review-queue) ✓
+  - 24 unit tests, 391 total passing, ruff clean
+  - Shaping: `f3-monitoring/shaping.md`
+- F3.2: NestJS proxy + monitoring dashboard UI ✓
+  - 4 NestJS proxy endpoints → quant-engine
+  - 4 React hooks + dashboard page with 4 cards (2x2 grid)
+  - Sidebar nav item added
+  - Typecheck clean (API + Web), build clean
+  - Shaping: `f3-monitoring/shaping-f3.2.md`
 
-**Pending:**
-- MF-F1: Feature Engineering automatico (sector proxy maps + refinancingStress quantitativo)
-
-**Next action:** Build MF-F1, depois MF-B2 (pipeline execution).
+**Next action:** F3.3 — Automated alerts.
 
 ### 15. Close Summary
 
-_Pendente — sera preenchido apos build._
+**Plano 2 internal v2 + governance UI — approved.**
+
+**Delivered:**
+- Scoring engine: opportunity vector (3 dims) + fragility vector (4 dims) + bucketing + ranking
+- Feature engineering: sector proxy maps + quantitative refinancing stress + AI-assisted rubric suggestions
+- Persistence: plan2_runs + plan2_thesis_scores + plan2_rubric_scores (superseded-at versioning)
+- API: ranking, breakdown, rubric CRUD, AI suggest proxy (NestJS → Python ai-assistant)
+- Web: thesis ranking toggle, bucket badges, rubric review queue (accept/edit/reject)
+- USD trio coverage: 98/98 (100%) eligible issuers
+- Monitoring foundation: 4 pure computation functions + 4 FastAPI endpoints (monitoring, drift, aging, review-queue)
+- Governance dashboard: NestJS proxy + `/thesis/monitoring` page with 4 cards answering operational governance questions
+- Automated alerts: 6 alert types (BUCKET_DRIFT_HIGH, TOP10_CHANGED, LOW_CONFIDENCE_SURGE, STALE_RUBRICS_HIGH, REVIEW_QUEUE_HIGH_GROWTH, D_FRAGILE_SHIFT) with WARNING/CRITICAL thresholds, banner on monitoring page
+
+**Key metrics across F2.3 expansion:**
+- Bucket drift: 0 across all 3 batches
+- D_FRAGILE stability: 2→2→2→2 (HYPE3, COGN3)
+- Top 10 stability: identical across all batches
+- Audit samples: 30/30 sector-consistent, 0 systematic bias
+
+**Provenance state:**
+- RUBRIC_MANUAL: 48 scores (16 issuers, human-reviewed)
+- AI_ASSISTED/rubric-suggest-v1: 19 (LLM-generated, human-reviewed)
+- AI_ASSISTED/sector-heuristic-v1: 227 (auto-applied + individually reviewed)
+
+**Ressalva oficial (Tech Lead):**
+> 100% de coverage nao significa 100% de maturidade de evidencia.
+> O sistema esta operacionalmente completo, mas a profundidade de
+> evidencia continua desigual. RUBRIC_MANUAL concentrada em subconjunto menor.
+
+**Cuts / follow-ups:**
+- MF-G: Validation framework (sensitivity, stability, correlation) — deferred
+- F3.1 + F3.2: Monitoring + governance layer — DONE
+- F3.3: Automated alerts — DONE (6 alert types, banner on monitoring page)
+- F3.4: External notifications / webhook layer — future (only when thresholds are stable)
+- Dashboard UX polish: drift baseline dates, aging filter, review queue filters — future
+- Alert payload: baseline_run_id, link to target card — future
+- Alert indicator on ranking page — future
+- Subteses por commodity (v3) — future
+- realAsset dimension (opportunity vector 4th dim) — future
+- hedgingProtection + usDemandConcentration (fragility vector 5th/6th dim) — future
 
 ### 16. Tech Lead Handoff
 
-_Pendente — sera preenchido apos close._
+**Micro feature:** Global Thesis Layer (Plano 2)
+**Selected shape:** New `thesis/` module in quant-engine + `thesis.ts` in shared-contracts
+**Appetite used:** Multiple sessions across MF-A through F3.3
+**Status:** v2 + governance + alerts approved
+
+**What changed:**
+- `packages/shared-contracts/src/domains/thesis.ts` — 13 Zod schemas
+- `services/quant-engine/src/q3_quant_engine/thesis/` — scoring engine, eligibility, pipeline, config, types, router
+- `packages/shared-models-py/src/q3_shared_models/entities.py` — Plan2Run, Plan2ThesisScore, Plan2RubricScore, ThesisBucket enum
+- `apps/api/src/db/schema.ts` — Drizzle plan2 tables
+- `apps/api/src/thesis/` — controller + service (ranking, rubrics, AI suggest proxy)
+- `apps/web/app/(dashboard)/thesis/` — ranking page, rubrics page
+- `apps/web/src/hooks/api/useThesisRubrics.ts` — hooks for rubric CRUD + AI suggest
+- `services/ai-assistant/src/q3_ai_assistant/modules/rubric_suggester.py` — dimension-aware AI suggester
+- `services/ai-assistant/src/q3_ai_assistant/prompts/rubric.py` — 3 dimension prompts
+- Alembic migration for plan2_runs, plan2_thesis_scores, plan2_rubric_scores
+
+**Guard rails:**
+- AI_ASSISTED capped at LOW/MEDIUM confidence (never HIGH)
+- AI_ASSISTED never overwrites RUBRIC_MANUAL
+- Evidence quality formula does NOT count AI_ASSISTED toward HIGH_EVIDENCE
+- Superseded-at versioning preserves full audit trail
+- Provenance tracked per-dimension per-issuer
+
+**Residual risks:**
+- Evidence depth uneven (48 RUBRIC_MANUAL vs 246 AI_ASSISTED)
+- Sensitivity to threshold constants (BUCKET_THRESHOLDS, weights) not continuously validated
+- Alert thresholds not yet tuned against real usage patterns
+
+**Where to focus review:**
+- `thesis/pipeline.py` — orchestration logic, rubric loading, feature completion
+- `thesis/scoring.py` — weight constants, bucket thresholds
+- `thesis/config.py` — all tunable parameters
+- `prompts/rubric.py` — LLM prompt quality for AI suggestions
+
+**Follow-ups:**
+- F3.4: External notifications / webhook layer (when alert thresholds are stable)
+- Alert UX: baseline_run_id in payload, link to target card, ranking page indicator
+- Expand RUBRIC_MANUAL coverage through ongoing human review
+- Add remaining fragility dimensions (hedging, US demand concentration)
+- Add opportunity 4th dimension (real asset character)
