@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { useCreateStrategyRun, useStrategyRuns } from '../../../src/hooks/api/useStrategyRuns';
 import { useStrategyRegistry, getStatusLabel, getStatusColor } from '../../../src/hooks/api/useStrategyRegistry';
+import { StrategyWarningGate, StrategyExecutionBanner } from '../../../src/components/StrategyWarningGate';
 
 import type { StrategyRunResponse, StrategyType } from '@q3/shared-contracts';
 
@@ -129,7 +130,10 @@ function RunCard({ run, expanded, onToggle }: { run: StrategyRunResponse; expand
         </svg>
       </button>
 
-      {/* Expanded: assets table */}
+      {/* Expanded: persistent status banner + assets table */}
+      {expanded && run.status === 'completed' && (
+        <StrategyExecutionBanner strategyType={run.strategy} />
+      )}
       {expanded && run.status === 'completed' && assets.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border-color)', maxHeight: 480, overflow: 'auto' }}>
           <table className="ranking-table">
@@ -259,23 +263,12 @@ export default function StrategyPage() {
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
-          <button
-            onClick={() => createRun.mutate({ strategy: selected })}
-            disabled={createRun.isPending}
-            style={{
-              padding: '0.5rem 1.25rem',
-              background: 'var(--accent-gold)',
-              color: '#0a0e1a',
-              border: 'none',
-              borderRadius: 6,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: createRun.isPending ? 'wait' : 'pointer',
-              opacity: createRun.isPending ? 0.7 : 1,
-            }}
-          >
-            {createRun.isPending ? 'Criando...' : 'Calcular Ranking'}
-          </button>
+          <StrategyWarningGate
+            strategyType={selected}
+            onConfirm={() => createRun.mutate({ strategy: selected })}
+            isPending={createRun.isPending}
+            buttonLabel="Calcular Ranking"
+          />
         </div>
 
         {isLoading && (

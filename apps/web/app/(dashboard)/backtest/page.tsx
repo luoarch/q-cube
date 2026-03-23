@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
 
 import { useBacktestRuns, useCreateBacktestRun } from '../../../src/hooks/api/useBacktest';
+import { StrategyWarningGate, StrategyExecutionBanner } from '../../../src/components/StrategyWarningGate';
 import {
   useStrategyRegistry,
   getStatusLabel,
@@ -204,24 +205,14 @@ export default function BacktestPage() {
             overflowY: 'auto',
           }}
         >
-          <button
-            onClick={handleCreate}
-            disabled={createRun.isPending}
-            style={{
-              width: '100%',
-              fontSize: 12,
-              padding: '6px 8px',
-              marginBottom: 12,
-              background: 'var(--accent-gold, #fbbf24)',
-              color: '#0a0e1a',
-              border: 'none',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            {createRun.isPending ? '...' : '+ Novo Backtest'}
-          </button>
+          <div style={{ marginBottom: 12 }}>
+            <StrategyWarningGate
+              strategyType="magic_formula_brazil"
+              onConfirm={handleCreate}
+              isPending={createRun.isPending}
+              buttonLabel="+ Novo Backtest"
+            />
+          </div>
 
           {runs?.map((run) => (
             <RunCard
@@ -244,7 +235,12 @@ export default function BacktestPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {selectedRunId && selectedRun ? (
             <>
-              {/* Strategy status banner */}
+              {/* Persistent execution status banner */}
+              {selectedConfig?.strategyType && (
+                <StrategyExecutionBanner strategyType={selectedConfig.strategyType as string} />
+              )}
+
+              {/* Strategy status banner (config-level) */}
               {selectedEntry && (
                 <div
                   style={{
