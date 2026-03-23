@@ -36,6 +36,10 @@ q3-db-seed = "q3_quant_engine.seeds:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "integration: marks tests that require PostgreSQL (deselect with '-m \"not integration\"')",
+]
+addopts = "-m 'not integration'"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
