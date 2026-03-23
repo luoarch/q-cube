@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 
 import { useDashboard } from '../../../src/hooks/api/useDashboard';
 import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
+import { RankingDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
 
 const STAGE_COLORS: Record<string, string> = {
   completed: '#22c55e',
@@ -147,6 +148,7 @@ export default function DashboardPage() {
       </header>
 
       <StrategyContextBanner />
+      <RankingDisclaimer />
 
       {isLoading ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>

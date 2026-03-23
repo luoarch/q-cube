@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 
 import { useBacktestRuns, useCreateBacktestRun } from '../../../src/hooks/api/useBacktest';
 import { StrategyWarningGate, StrategyExecutionBanner } from '../../../src/components/StrategyWarningGate';
+import { BacktestDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
 import {
   useStrategyRegistry,
   getStatusLabel,
@@ -235,10 +236,11 @@ export default function BacktestPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {selectedRunId && selectedRun ? (
             <>
-              {/* Persistent execution status banner */}
+              {/* Persistent execution status + methodology disclaimer */}
               {selectedConfig?.strategyType && (
                 <StrategyExecutionBanner strategyType={selectedConfig.strategyType as string} />
               )}
+              <BacktestDisclaimer />
 
               {/* Strategy status banner (config-level) */}
               {selectedEntry && (

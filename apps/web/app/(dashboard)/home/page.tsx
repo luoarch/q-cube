@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
 import { useRanking } from '../../../src/hooks/api/useRanking';
+import { HomeDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
 
 const QCubeScene = dynamic(
   () => import('../../../src/components/three/scenes/QCubeScene').then((m) => m.QCubeScene),
@@ -57,17 +58,18 @@ export default function HomePage() {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
             Quantity · Quality · Quant Technology
           </p>
+          <HomeDisclaimer />
         </div>
 
         {/* Bottom stats + quick actions */}
         <div style={{ pointerEvents: 'auto' }}>
           {/* Stats row */}
           <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-            <StatChip label="Ativos no Ranking" value={String(items.length)} />
+            <StatChip label="Ativos no Screening" value={String(items.length)} />
             {topItem && (
-              <StatChip label="Top #1" value={topItem.ticker} />
+              <StatChip label="Rank #1 (fórmula)" value={topItem.ticker} />
             )}
-            <StatChip label="ROIC Medio" value={avgRoic > 0 ? `${(avgRoic * 100).toFixed(1)}%` : '—'} />
+            <StatChip label="ROIC Médio" value={avgRoic > 0 ? `${(avgRoic * 100).toFixed(1)}%` : '—'} />
           </div>
 
           {/* Quick actions */}

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { useRanking } from '../../../src/hooks/api/useRanking';
 import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
+import { RankingDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
 import { useThesisRanking } from '../../../src/hooks/api/useThesisRanking';
 
 import type {
@@ -381,8 +382,9 @@ export default function RankingPage() {
         </span>
       </header>
 
-      {/* Strategy context banner */}
+      {/* Strategy context + methodology disclaimer */}
       <StrategyContextBanner />
+      <RankingDisclaimer />
 
       {/* Thesis mode metadata banner */}
       {mode === 'thesis' && thesisMeta && <ThesisMetaBanner meta={thesisMeta} />}

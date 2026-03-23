@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 import { usePortfolio } from '../../../src/hooks/api/usePortfolio';
 import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
+import { PortfolioDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
 
 const PortfolioConstellationScene = dynamic(
   () =>
@@ -83,11 +84,12 @@ export default function PortfolioPage() {
       <header className="dashboard-header">
         <h1>Portfolio</h1>
         <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          Top 10 holdings do ultimo ranking
+          Top 10 do último screening quantitativo
         </span>
       </header>
 
       <StrategyContextBanner />
+      <PortfolioDisclaimer />
 
       {isLoading ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>

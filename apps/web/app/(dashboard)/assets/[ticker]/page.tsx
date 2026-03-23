@@ -5,6 +5,7 @@ import { use } from 'react';
 
 import { useAssetDetail } from '../../../../src/hooks/api/useAssetDetail';
 import { useThesisBreakdown } from '../../../../src/hooks/api/useThesisBreakdown';
+import { GUARDRAIL_TOOLTIPS } from '../../../../src/components/MethodologicalDisclaimer';
 
 import type { Plan2BreakdownResponse, DimensionBreakdownItem, ThesisBucket, EvidenceQuality, ScoreSourceType } from '@q3/shared-contracts';
 
@@ -402,7 +403,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
           <MetricCard label="Dívida Líq./EBITDA" value={formatMultiple(asset.netDebtToEbitda)} />
           <MetricCard label="Dividend Yield" value={formatPct(asset.dividendYield)} />
           {asset.compositeScore != null && (
-            <MetricCard label="Composite Score" value={`${(asset.compositeScore * 100).toFixed(0)}%`} />
+            <MetricCard label="Composite Score" value={`${(asset.compositeScore * 100).toFixed(0)}%`} subtitle={GUARDRAIL_TOOLTIPS.compositeScore} />
           )}
         </div>
 
@@ -497,7 +498,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
               padding: '1rem 1.25rem',
             }}
           >
-            <h3 style={{ margin: '0 0 0.75rem', fontSize: 14, fontWeight: 600 }}>Factor Analysis</h3>
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: 14, fontWeight: 600 }} title={GUARDRAIL_TOOLTIPS.factorAnalysis}>Factor Analysis</h3>
             {asset.factors.map((f) => (
               <FactorBar key={f.name} name={f.name} value={f.value} max={f.max} />
             ))}
