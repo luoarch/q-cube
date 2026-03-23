@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { useRanking } from '../../../src/hooks/api/useRanking';
 import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
 import { RankingDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
+import { ProvenanceFooter } from '../../../src/components/ProvenanceFooter';
 import { useThesisRanking } from '../../../src/hooks/api/useThesisRanking';
 
 import type {
@@ -291,7 +292,8 @@ export default function RankingPage() {
   const [bucketFilter, setBucketFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  const coreItems = useMemo(() => coreQuery.data ?? [], [coreQuery.data]);
+  const coreItems = useMemo(() => coreQuery.data?.data ?? [], [coreQuery.data]);
+  const coreProvenance = coreQuery.data?.provenance ?? null;
   const thesisData = thesisQuery.data;
   const thesisItems = useMemo(() => thesisData?.data ?? [], [thesisData]);
   const thesisMeta = thesisData?.meta ?? null;
@@ -481,6 +483,9 @@ export default function RankingPage() {
         ) : (
           <ThesisRankingTable items={filteredThesis} />
         )}
+
+        {/* Data provenance */}
+        {mode === 'core' && <ProvenanceFooter provenance={coreProvenance} />}
       </div>
     </div>
   );

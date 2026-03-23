@@ -126,6 +126,15 @@ export class PortfolioService {
       holdings,
       equityCurve: null,
       factorTilt,
+      provenance: {
+        source: 'strategy_run',
+        runId: latestRun.id,
+        strategy: latestRun.strategy,
+        runDate: latestRun.createdAt.toISOString(),
+        asOfDate: latestRun.asOfDate ? latestRun.asOfDate.toISOString() : null,
+        topN: tickers.length,
+        universePolicy: 'v1',
+      },
     });
   }
 

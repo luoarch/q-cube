@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { dataProvenanceSchema } from './portfolio.js';
+
 export const rankingItemSchema = z.object({
   ticker: z.string(),
   name: z.string(),
@@ -26,6 +28,7 @@ export const paginationMetaSchema = z.object({
 export const paginatedRankingSchema = z.object({
   data: z.array(rankingItemSchema),
   meta: paginationMetaSchema,
+  provenance: dataProvenanceSchema.nullable().optional(),
 });
 
 export type RankingItem = z.infer<typeof rankingItemSchema>;

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePortfolio } from '../../../src/hooks/api/usePortfolio';
 import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
 import { PortfolioDisclaimer } from '../../../src/components/MethodologicalDisclaimer';
+import { ProvenanceFooter } from '../../../src/components/ProvenanceFooter';
 
 const PortfolioConstellationScene = dynamic(
   () =>
@@ -205,6 +206,9 @@ export default function PortfolioPage() {
               </div>
             )}
           </div>
+
+          {/* Data provenance */}
+          <ProvenanceFooter provenance={(data as Record<string, unknown>)?.provenance as import('@q3/shared-contracts').DataProvenance | undefined} />
 
           {/* 3D Constellation Scene */}
           <div

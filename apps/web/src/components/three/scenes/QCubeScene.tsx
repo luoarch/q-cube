@@ -16,7 +16,8 @@ import { HudTooltip } from '../ui/HudTooltip';
 import { ScreenReaderDescription } from '../ui/ScreenReaderDescription';
 
 function QCubeInner() {
-  const { data: items = [] } = useRanking();
+  const { data: rankingResult } = useRanking();
+  const items = rankingResult?.data ?? [];
   const budget = useResponsiveParticles();
   useKeyboardNav(items);
 
@@ -37,7 +38,8 @@ function QCubeInner() {
 }
 
 export function QCubeScene() {
-  const { data: items = [], isLoading, error } = useRanking();
+  const { data: rankingResult, isLoading, error } = useRanking();
+  const items = rankingResult?.data ?? [];
 
   if (error) {
     return (

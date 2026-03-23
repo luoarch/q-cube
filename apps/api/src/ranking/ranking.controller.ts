@@ -59,6 +59,12 @@ export class RankingController {
         total,
         totalPages,
       },
+      provenance: {
+        source: 'compat_view',
+        strategy: 'magic_formula_brazil',
+        dataSource: 'CVM filings + Yahoo snapshots',
+        universePolicy: 'v1',
+      },
     });
   }
 }
