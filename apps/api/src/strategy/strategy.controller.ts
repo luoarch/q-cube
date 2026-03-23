@@ -21,6 +21,11 @@ import type { JwtPayload } from '../auth/auth.service.js';
 export class StrategyController {
   constructor(private readonly strategyService: StrategyService) {}
 
+  @Get('registry')
+  async getRegistry() {
+    return this.strategyService.getStrategyRegistry();
+  }
+
   @Post()
   async create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const input = createStrategyRunSchema.parse({

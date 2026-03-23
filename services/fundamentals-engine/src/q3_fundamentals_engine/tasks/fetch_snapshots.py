@@ -86,6 +86,7 @@ def fetch_market_snapshots() -> dict:
                         market_cap=snap_data.market_cap,
                         volume=snap_data.volume,
                         raw_json=snap_data.raw_json,
+                        shares_outstanding=snap_data.shares_outstanding,
                     )
                     session.add(snapshot)
                     snapshots_created += 1

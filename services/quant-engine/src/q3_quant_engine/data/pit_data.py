@@ -87,31 +87,65 @@ def fetch_fundamentals_pit(
     - Ranking happens at security level (primary ticker per issuer)
     """
     cutoff = _as_of_datetime(as_of_date)
+    cutoff_date = as_of_date
 
-    # Subquery: latest filing per issuer where available_at <= cutoff
+    # Subquery: latest filing per issuer where the filing was publicly available.
+    # Uses publication_date (estimated CVM deadline, from Plan 3C.3) when available,
+    # falling back to available_at (import timestamp) for filings without publication_date.
+    # This gives correct PIT semantics for historical backtesting.
+    pit_date_expr = func.coalesce(Filing.publication_date, Filing.available_at)
+
     latest_filing = (
         select(
             Filing.issuer_id,
-            func.max(Filing.available_at).label("max_available"),
+            func.max(Filing.id).label("max_filing_id"),
         )
         .where(
-            Filing.available_at <= cutoff,
+            or_(
+                Filing.publication_date <= cutoff_date,
+                (Filing.publication_date.is_(None)) & (Filing.available_at <= cutoff),
+            ),
             Filing.status == FilingStatus.completed,
         )
         .group_by(Filing.issuer_id)
         .subquery()
     )
 
-    # Get the filings themselves
-    filing_rows = session.execute(
+    # Get the filings themselves — pick the one with latest reference_date per issuer
+    # from among those that are PIT-visible.
+    pit_visible_filings = (
         select(Filing)
-        .join(
-            latest_filing,
-            (Filing.issuer_id == latest_filing.c.issuer_id)
-            & (Filing.available_at == latest_filing.c.max_available),
+        .where(
+            or_(
+                Filing.publication_date <= cutoff_date,
+                (Filing.publication_date.is_(None)) & (Filing.available_at <= cutoff),
+            ),
+            Filing.status == FilingStatus.completed,
         )
-        .where(Filing.status == FilingStatus.completed)
+        .subquery()
+    )
+
+    # For each issuer, pick the filing with the latest reference_date,
+    # then latest version, among those that are PIT-visible.
+    # publication_date is the preferred PIT gate; available_at is fallback.
+    pit_filter = or_(
+        Filing.publication_date <= cutoff_date,
+        (Filing.publication_date.is_(None)) & (Filing.available_at <= cutoff),
+    )
+    all_visible = session.execute(
+        select(Filing)
+        .where(pit_filter, Filing.status == FilingStatus.completed)
+        .order_by(Filing.reference_date.desc(), Filing.version_number.desc())
     ).scalars().all()
+
+    # Deduplicate: keep only the best filing per issuer
+    # (latest reference_date, then latest version_number)
+    seen_issuers: set = set()
+    filing_rows: list = []
+    for f in all_visible:
+        if f.issuer_id not in seen_issuers:
+            seen_issuers.add(f.issuer_id)
+            filing_rows.append(f)
 
     filing_by_issuer: dict[str, Filing] = {}
     for f in filing_rows:

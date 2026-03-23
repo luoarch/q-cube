@@ -8,10 +8,10 @@ import {
   strategyRunResponseSchema,
   strategyRunQueuedEventSchema,
 } from '@q3/shared-contracts';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { DB } from '../database/database.constants.js';
-import { jobs, strategyRuns } from '../db/schema.js';
+import { jobs, strategyRuns, strategyStatusRegistry } from '../db/schema.js';
 import { REDIS } from '../redis/redis.constants.js';
 
 import type { EnvConfig } from '../config/env.schema.js';
@@ -172,5 +172,26 @@ export class StrategyService {
         })
         .where(and(eq(jobs.id, input.jobId), eq(jobs.tenantId, input.tenantId)));
     });
+  }
+
+  async getStrategyRegistry() {
+    const rows = await this.db
+      .select()
+      .from(strategyStatusRegistry)
+      .where(isNull(strategyStatusRegistry.supersededAt))
+      .orderBy(strategyStatusRegistry.strategyKey);
+
+    return rows.map((r) => ({
+      strategyKey: r.strategyKey,
+      strategyFingerprint: r.strategyFingerprint,
+      strategyType: r.strategyType,
+      role: r.role,
+      promotionStatus: r.promotionStatus,
+      evidenceSummary: r.evidenceSummary,
+      isSharpeAvg: r.isSharpeAvg ? Number(r.isSharpeAvg) : null,
+      oosSharpeAvg: r.oosSharpeAvg ? Number(r.oosSharpeAvg) : null,
+      promotionChecks: r.promotionChecks,
+      configJson: r.configJson,
+    }));
   }
 }

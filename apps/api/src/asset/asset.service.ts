@@ -173,6 +173,9 @@ export class AssetService {
 
     const compositeScore = (pctRoic + pctEy + pctRoc + pctNm + pctGm) / 5;
 
+    // Payout yield: dual-trail analytical surface from computed_metrics
+    const payoutYield = await this.buildPayoutYield(row.issuer_id as string);
+
     return assetDetailSchema.parse({
       ticker,
       name: row.name ?? ticker,
@@ -194,6 +197,98 @@ export class AssetService {
       compositeScore: Math.round(compositeScore * 1000) / 1000,
       factors,
       priceHistory: null,
+      payoutYield,
     });
+  }
+
+  /**
+   * Build the dual-trail payout yield surface from computed_metrics.
+   *
+   * - Exact trail materializes only if net_buyback_yield or net_payout_yield exists
+   * - Free-source trail materializes only if nby_proxy_free or npy_proxy_free exists
+   * - dividend_yield participates in composition but does NOT define trail existence
+   * - Each trail uses a single anchor date (latest date with trail-specific metrics)
+   *
+   * payoutYield is the canonical analytical surface.
+   * The legacy top-level dividendYield remains for backward compatibility
+   * and may differ in source, date, or value.
+   */
+  private async buildPayoutYield(issuerId: string) {
+    const metricsResult = await this.db.execute(sql`
+      SELECT metric_code, value::float, reference_date::text
+      FROM computed_metrics
+      WHERE issuer_id = ${issuerId}
+        AND metric_code IN (
+          'dividend_yield', 'net_buyback_yield', 'net_payout_yield',
+          'nby_proxy_free', 'npy_proxy_free'
+        )
+      ORDER BY reference_date DESC
+    `);
+
+    const metrics = metricsResult.rows as Array<{
+      metric_code: string;
+      value: number | null;
+      reference_date: string;
+    }>;
+
+    if (metrics.length === 0) return null;
+
+    // Group by reference_date
+    const byDate = new Map<string, Map<string, number | null>>();
+    for (const m of metrics) {
+      if (!byDate.has(m.reference_date)) {
+        byDate.set(m.reference_date, new Map());
+      }
+      // Keep the first (latest version) per metric+date
+      const dateMap = byDate.get(m.reference_date)!;
+      if (!dateMap.has(m.metric_code)) {
+        dateMap.set(m.metric_code, m.value);
+      }
+    }
+
+    // Find anchor dates per trail (trail-specific metrics define existence)
+    const EXACT_SPECIFIC = ['net_buyback_yield', 'net_payout_yield'];
+    const FREE_SPECIFIC = ['nby_proxy_free', 'npy_proxy_free'];
+
+    let exactDate: string | null = null;
+    let freeDate: string | null = null;
+
+    // Dates are sorted DESC from the query
+    for (const [refDate, dateMetrics] of byDate) {
+      if (!exactDate && EXACT_SPECIFIC.some((m) => dateMetrics.has(m))) {
+        exactDate = refDate;
+      }
+      if (!freeDate && FREE_SPECIFIC.some((m) => dateMetrics.has(m))) {
+        freeDate = refDate;
+      }
+      if (exactDate && freeDate) break;
+    }
+
+    const getVal = (d: string, code: string): number | null =>
+      byDate.get(d)?.get(code) ?? null;
+
+    const exact = exactDate
+      ? {
+          referenceDate: exactDate,
+          dividendYield: getVal(exactDate, 'dividend_yield'),
+          netBuybackYield: getVal(exactDate, 'net_buyback_yield'),
+          netPayoutYield: getVal(exactDate, 'net_payout_yield'),
+          trail: 'exact' as const,
+        }
+      : null;
+
+    const freeSource = freeDate
+      ? {
+          referenceDate: freeDate,
+          dividendYield: getVal(freeDate, 'dividend_yield'),
+          nbyProxyFree: getVal(freeDate, 'nby_proxy_free'),
+          npyProxyFree: getVal(freeDate, 'npy_proxy_free'),
+          trail: 'free-source' as const,
+        }
+      : null;
+
+    if (!exact && !freeSource) return null;
+
+    return { exact, freeSource };
   }
 }

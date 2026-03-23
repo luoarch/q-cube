@@ -5,7 +5,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 from q3_quant_engine.strategies.ranking import (
-    EXCLUDED_SECTORS,
     RankedAsset,
     _CompatAsset,
     _CompatFS,
@@ -87,27 +86,32 @@ def test_ranking_ordering_ey_desc_roc_desc():
 
 
 def test_gate_applied_before_ranking():
-    """Asset with great EY/ROC but in excluded sector must NOT appear in Brazil results."""
+    """Universe filtering is done upstream (run_backtest), not in _rank_pit_data.
+
+    After Plan 4B + Empirical Validation Closure, sector exclusion uses
+    universe_classifications, applied before _rank_pit_data is called.
+    This test verifies that _rank_pit_data still applies liquidity/EBIT gates.
+    """
     data = [
-        (_make_asset("BANK3", sector="Financeiro"), _make_fs(ebit=500, ev=100)),
-        (_make_asset("TECH3", sector="Tecnologia"), _make_fs(ebit=100, ev=1000)),
+        (_make_asset("GOOD3"), _make_fs(ebit=100, ev=1000)),
+        (_make_asset("NOEBIT3"), _make_fs(ebit=-50, ev=1000)),
     ]
     ranked = _rank_pit_data(data, "magic_formula_brazil")
     tickers = [r.ticker for r in ranked]
-    assert "BANK3" not in tickers
-    assert "TECH3" in tickers
+    assert "NOEBIT3" not in tickers
+    assert "GOOD3" in tickers
 
 
 def test_gate_is_filter_not_score():
-    """Removing a gate doesn't change remaining assets' relative ranking."""
+    """Liquidity/EBIT filters don't change remaining assets' relative ranking."""
     base_data = [
         (_make_asset("A3"), _make_fs(ebit=200, ev=400, nwc=50, fa=50)),
         (_make_asset("B3"), _make_fs(ebit=100, ev=1000, nwc=100, fa=100)),
         (_make_asset("C3"), _make_fs(ebit=50, ev=500, nwc=200, fa=200)),
     ]
-    # With a filtered asset
+    # With a filtered asset (negative EBIT)
     with_gate = [
-        (_make_asset("BANK3", sector="Financeiro"), _make_fs(ebit=500, ev=100)),
+        (_make_asset("BAD3"), _make_fs(ebit=-100, ev=100)),
     ] + base_data
 
     ranked_without = _rank_pit_data(base_data, "magic_formula_brazil")
@@ -148,25 +152,18 @@ def test_no_overlay_does_not_corrupt_score():
     assert ranked[0].ticker == "A3"
 
 
-def test_ranking_excludes_financeiras():
-    """Brazil variant excludes 'Financeiro' sector."""
+def test_sector_filtering_is_upstream():
+    """Sector filtering now happens upstream via universe_classifications.
+
+    _rank_pit_data no longer filters by sector — that's done in run_backtest()
+    using the frozen policy universe. This test confirms all sectors pass through.
+    """
     data = [
-        (_make_asset("ITUB3", sector="Financeiro"), _make_fs(ebit=500, ev=100)),
+        (_make_asset("BANK3", sector="Financeiro"), _make_fs(ebit=500, ev=100)),
         (_make_asset("TECH3", sector="Tecnologia"), _make_fs(ebit=100, ev=1000)),
     ]
     ranked = _rank_pit_data(data, "magic_formula_brazil")
     tickers = [r.ticker for r in ranked]
-    assert "ITUB3" not in tickers
-    assert "TECH3" in tickers
-
-
-def test_ranking_excludes_utilities():
-    """Brazil variant excludes 'Utilidade Pública' sector."""
-    data = [
-        (_make_asset("ELET3", sector="Utilidade Pública"), _make_fs(ebit=500, ev=100)),
-        (_make_asset("TECH3", sector="Tecnologia"), _make_fs(ebit=100, ev=1000)),
-    ]
-    ranked = _rank_pit_data(data, "magic_formula_brazil")
-    tickers = [r.ticker for r in ranked]
-    assert "ELET3" not in tickers
+    # Both should be present — sector filtering is upstream
+    assert "BANK3" in tickers
     assert "TECH3" in tickers

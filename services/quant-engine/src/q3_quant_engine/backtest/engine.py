@@ -104,7 +104,6 @@ def _rank_pit_data(
     from decimal import Decimal as _Decimal
 
     from q3_quant_engine.strategies.ranking import (
-        EXCLUDED_SECTORS,
         MIN_AVG_DAILY_VOLUME,
         MIN_MARKET_CAP,
         _rank_percentile,
@@ -113,7 +112,6 @@ def _rank_pit_data(
         _rank_ascending,
         _safe_div,
     )
-
     if not fundamentals:
         return []
 
@@ -121,12 +119,11 @@ def _rank_pit_data(
     effective_min_vol = _Decimal(str(min_avg_daily_volume)) if min_avg_daily_volume is not None else MIN_AVG_DAILY_VOLUME
 
     # Apply filters based on strategy type
+    # Universe eligibility is enforced upstream via core_eligible_ids filter.
     filtered: list[tuple[int, object, object, float | None, float | None]] = []
     idx = 0
     for asset, fs in fundamentals:
         if strategy_type in ("magic_formula_brazil", "magic_formula_hybrid"):
-            if asset.sector and asset.sector.lower() in EXCLUDED_SECTORS:
-                continue
             if fs.avg_daily_volume is not None and fs.avg_daily_volume < effective_min_vol:
                 continue
             if fs.market_cap is not None and fs.market_cap < effective_min_mcap:
@@ -229,6 +226,22 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
             metrics={}, rebalance_dates=[],
         )
 
+    # Load frozen policy universe (CORE_ELIGIBLE issuer_ids).
+    # This is NOT a PIT historical universe — it's the current classification.
+    # See empirical-validation-closure shaping for rationale.
+    from sqlalchemy import select as sa_select
+    from q3_shared_models.entities import UniverseClassification, Security
+    core_eligible_ids: set[str] = set()
+    core_rows = session.execute(
+        sa_select(UniverseClassification.issuer_id)
+        .where(
+            UniverseClassification.universe_class == "CORE_ELIGIBLE",
+            UniverseClassification.superseded_at.is_(None),
+        )
+    ).scalars().all()
+    core_eligible_ids = {str(uid) for uid in core_rows}
+    logger.info("Backtest universe: %d CORE_ELIGIBLE issuers (frozen policy)", len(core_eligible_ids))
+
     cash = config.initial_capital
     holdings: dict[str, dict] = {}  # {ticker: {shares, last_price}}
     equity_curve: list[dict] = [{"date": config.start_date, "value": config.initial_capital}]
@@ -239,7 +252,9 @@ def run_backtest(session: Session, config: BacktestConfig) -> BacktestResult:
         # 1. Run PIT ranking at rebalance date
         fundamentals = fetch_fundamentals_pit(session, rebal_date)
         universe = fetch_eligible_universe_pit(session, rebal_date)
-        fundamentals = [(a, fs) for a, fs in fundamentals if a.ticker in universe]
+        # Filter by both PIT listing universe AND frozen policy universe
+        fundamentals = [(a, fs) for a, fs in fundamentals
+                        if a.ticker in universe and a.issuer_id in core_eligible_ids]
 
         ranked = _rank_pit_data(fundamentals, config.strategy_type,
                                 min_market_cap=config.min_market_cap,

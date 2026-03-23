@@ -16,6 +16,35 @@ export const assetPricePointSchema = z.object({
   volume: z.number(),
 });
 
+// ---------------------------------------------------------------------------
+// Payout Yield — dual-trail analytical surface
+// ---------------------------------------------------------------------------
+
+export const exactPayoutYieldSchema = z.object({
+  referenceDate: z.string(),
+  dividendYield: z.number().nullable(),
+  netBuybackYield: z.number().nullable(),
+  netPayoutYield: z.number().nullable(),
+  trail: z.literal('exact'),
+});
+
+export const freeSourcePayoutYieldSchema = z.object({
+  referenceDate: z.string(),
+  dividendYield: z.number().nullable(),
+  nbyProxyFree: z.number().nullable(),
+  npyProxyFree: z.number().nullable(),
+  trail: z.literal('free-source'),
+});
+
+export const payoutYieldSchema = z.object({
+  exact: exactPayoutYieldSchema.nullable(),
+  freeSource: freeSourcePayoutYieldSchema.nullable(),
+});
+
+// ---------------------------------------------------------------------------
+// Asset detail
+// ---------------------------------------------------------------------------
+
 export const assetDetailSchema = z.object({
   ticker: z.string(),
   name: z.string(),
@@ -37,6 +66,10 @@ export const assetDetailSchema = z.object({
   compositeScore: z.number().nullable(),
   factors: z.array(assetFactorSchema),
   priceHistory: z.array(assetPricePointSchema).nullable(),
+  payoutYield: payoutYieldSchema.nullable(),
 });
 
 export type AssetDetail = z.infer<typeof assetDetailSchema>;
+export type ExactPayoutYield = z.infer<typeof exactPayoutYieldSchema>;
+export type FreeSourcePayoutYield = z.infer<typeof freeSourcePayoutYieldSchema>;
+export type PayoutYield = z.infer<typeof payoutYieldSchema>;

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
 import { usePortfolio } from '../../../src/hooks/api/usePortfolio';
+import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
 
 const PortfolioConstellationScene = dynamic(
   () =>
@@ -85,6 +86,8 @@ export default function PortfolioPage() {
           Top 10 holdings do ultimo ranking
         </span>
       </header>
+
+      <StrategyContextBanner />
 
       {isLoading ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>

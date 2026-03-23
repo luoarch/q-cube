@@ -4,6 +4,12 @@ import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
 
 import { useBacktestRuns, useCreateBacktestRun } from '../../../src/hooks/api/useBacktest';
+import {
+  useStrategyRegistry,
+  getStatusLabel,
+  getStatusColor,
+  type StrategyRegistryEntry,
+} from '../../../src/hooks/api/useStrategyRegistry';
 
 import type { BacktestRunResponse } from '@q3/shared-contracts';
 
@@ -22,16 +28,75 @@ const STATUS_COLORS: Record<string, string> = {
   failed: '#ef4444',
 };
 
+/**
+ * Match a run config against the registry.
+ *
+ * The registry stores configJson for each entry. We compare the run's config
+ * against each registry entry's configJson on the canonical fields.
+ * This avoids cross-language fingerprint computation (Python float vs JS number).
+ */
+function matchRegistry(
+  runConfig: Record<string, unknown>,
+  registry: StrategyRegistryEntry[] | undefined,
+): StrategyRegistryEntry | null {
+  if (!registry || !runConfig) return null;
+
+  for (const entry of registry) {
+    const regConfig = entry.configJson as Record<string, unknown> | undefined;
+    if (!regConfig) continue;
+
+    // Compare canonical fields
+    const regCost = (regConfig.cost_model ?? {}) as Record<string, unknown>;
+    const runCost = (runConfig.costModel ?? {}) as Record<string, unknown>;
+
+    const match =
+      regConfig.strategy_type === runConfig.strategyType &&
+      regConfig.top_n === (runConfig.topN ?? 20) &&
+      regConfig.rebalance_freq === (runConfig.rebalanceFreq ?? 'monthly') &&
+      regConfig.equal_weight === (runConfig.equalWeight ?? true) &&
+      Number(regCost.proportional ?? 0) === Number(runCost.proportionalCost ?? runCost.proportional ?? 0.0005) &&
+      Number(regCost.slippage_bps ?? 0) === Number(runCost.slippageBps ?? runCost.slippage_bps ?? 10) &&
+      (regConfig.universe_policy_version ?? 'v1') === ((runConfig as Record<string, unknown>).universePolicyVersion ?? 'v1');
+
+    if (match) return entry;
+  }
+  return null;
+}
+
+function StatusChip({ entry }: { entry: StrategyRegistryEntry }) {
+  const color = getStatusColor(entry.promotionStatus);
+  return (
+    <span
+      title={entry.evidenceSummary}
+      style={{
+        fontSize: 9,
+        fontWeight: 600,
+        padding: '1px 6px',
+        borderRadius: 8,
+        background: `${color}18`,
+        color,
+        cursor: 'help',
+        letterSpacing: '0.3px',
+      }}
+    >
+      {entry.strategyKey}
+    </span>
+  );
+}
+
 function RunCard({
   run,
   active,
   onClick,
+  registry,
 }: {
   run: BacktestRunResponse;
   active: boolean;
   onClick: () => void;
+  registry: StrategyRegistryEntry[] | undefined;
 }) {
   const config = run.config as Record<string, unknown>;
+  const entry = matchRegistry(config, registry);
   return (
     <button
       onClick={onClick}
@@ -66,8 +131,9 @@ function RunCard({
           {run.status}
         </span>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
         {new Date(run.createdAt).toLocaleDateString('pt-BR')} · Top {(config?.topN as number) ?? 20}
+        {entry && <StatusChip entry={entry} />}
       </div>
     </button>
   );
@@ -94,10 +160,13 @@ function MetricDisplay({ label, value, suffix }: { label: string; value: number 
 export default function BacktestPage() {
   const { data: runs } = useBacktestRuns();
   const createRun = useCreateBacktestRun();
+  const { data: registry } = useStrategyRegistry();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const selectedRun = runs?.find((r) => r.id === selectedRunId);
   const metrics = selectedRun?.result?.metrics as Record<string, number> | undefined;
+  const selectedConfig = selectedRun?.config as Record<string, unknown> | undefined;
+  const selectedEntry = selectedConfig ? matchRegistry(selectedConfig, registry) : null;
 
   const handleCreate = useCallback(() => {
     createRun.mutate(
@@ -160,6 +229,7 @@ export default function BacktestPage() {
               run={run}
               active={run.id === selectedRunId}
               onClick={() => setSelectedRunId(run.id)}
+              registry={registry}
             />
           ))}
 
@@ -174,6 +244,39 @@ export default function BacktestPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {selectedRunId && selectedRun ? (
             <>
+              {/* Strategy status banner */}
+              {selectedEntry && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.5rem 1rem',
+                    borderBottom: '1px solid rgba(148,163,184,0.15)',
+                    background: `${getStatusColor(selectedEntry.promotionStatus)}08`,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: getStatusColor(selectedEntry.promotionStatus),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{selectedEntry.strategyKey}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {getStatusLabel(selectedEntry.role, selectedEntry.promotionStatus)}
+                  </span>
+                  {selectedEntry.oosSharpeAvg != null && (
+                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                      OOS Sharpe {selectedEntry.oosSharpeAvg.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Metrics bar */}
               {metrics && (
                 <div

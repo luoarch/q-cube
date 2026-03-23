@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 USE_CANONICAL_FUNDAMENTALS = os.getenv("USE_CANONICAL_FUNDAMENTALS", "true").lower() in ("true", "1", "yes")
 
 # --- Brazil filters ---
-EXCLUDED_SECTORS = {"financeiro", "utilidade pública"}
+# Universe eligibility is enforced by the compat view (JOIN universe_classifications).
+# Only liquidity/size/profitability gates remain here.
 MIN_AVG_DAILY_VOLUME = Decimal("1_000_000")
 MIN_MARKET_CAP = Decimal("500_000_000")
 
@@ -266,8 +267,6 @@ def run_magic_formula_brazil(
     filtered: list[tuple[int, Asset, FinancialStatement, float | None, float | None]] = []
     idx = 0
     for asset, fs in data:
-        if asset.sector and asset.sector.lower() in EXCLUDED_SECTORS:
-            continue
         if fs.avg_daily_volume is not None and fs.avg_daily_volume < MIN_AVG_DAILY_VOLUME:
             continue
         if fs.market_cap is not None and fs.market_cap < MIN_MARKET_CAP:
@@ -330,22 +329,20 @@ def run_magic_formula_hybrid(
     If no quality signals available for an asset: final_score = core_score.
 
     Brazil gates (filters, not factors):
-      - Exclude financials & utilities
       - Min avg daily volume R$1M
       - Min market cap R$500M
       - EBIT > 0
+    Universe eligibility enforced by the compat view.
     """
     data = _fetch_data(session, tenant_id)
     if not data:
         return []
 
-    # 1. Apply Brazil gates
+    # 1. Apply Brazil gates (universe filter is in the compat view)
     filtered: list[tuple[int, _CompatAsset | Asset, _CompatFS | FinancialStatement, float | None, float | None]] = []
     fs_map: dict[int, _CompatFS | FinancialStatement] = {}
     idx = 0
     for asset, fs in data:
-        if asset.sector and asset.sector.lower() in EXCLUDED_SECTORS:
-            continue
         if fs.avg_daily_volume is not None and fs.avg_daily_volume < MIN_AVG_DAILY_VOLUME:
             continue
         if fs.market_cap is not None and fs.market_cap < MIN_MARKET_CAP:

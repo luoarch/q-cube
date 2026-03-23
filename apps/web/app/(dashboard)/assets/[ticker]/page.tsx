@@ -406,6 +406,87 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
           )}
         </div>
 
+        {/* Payout Yield — dual-trail comparison */}
+        {asset.payoutYield && (
+          <div
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 8,
+              padding: '1rem 1.25rem',
+              marginBottom: '1rem',
+            }}
+          >
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: 14, fontWeight: 600 }}>Payout Yield</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: asset.payoutYield.exact && asset.payoutYield.freeSource ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+              {asset.payoutYield.exact && (
+                <div style={{ background: 'var(--bg-canvas)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', letterSpacing: '0.5px' }}>
+                      EXACT
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {asset.payoutYield.exact.referenceDate}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>DY</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.exact.dividendYield)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>NBY</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.exact.netBuybackYield)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>NPY</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.exact.netPayoutYield)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {asset.payoutYield.freeSource && (
+                <div style={{ background: 'var(--bg-canvas)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(168,85,247,0.1)', color: '#a855f7', letterSpacing: '0.5px' }}>
+                      FREE-SOURCE
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {asset.payoutYield.freeSource.referenceDate}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>DY</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.freeSource.dividendYield)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>NBY Proxy</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.freeSource.nbyProxyFree)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>NPY Proxy</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatPct(asset.payoutYield.freeSource.npyProxyFree)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Factor analysis */}
         {asset.factors && asset.factors.length > 0 && (
           <div

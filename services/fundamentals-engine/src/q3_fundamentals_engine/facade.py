@@ -59,7 +59,8 @@ class FundamentalsIngestionFacade:
 
         with SessionLocal() as session:
             for doc_type in doc_types:
-                batch = create_batch(session, "cvm", year, doc_type)
+                from q3_shared_models.entities import SourceProvider
+                batch = create_batch(session, SourceProvider.cvm, year, doc_type)
                 session.commit()
 
                 try:

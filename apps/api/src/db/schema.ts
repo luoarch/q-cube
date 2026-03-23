@@ -247,6 +247,8 @@ export const securities = pgTable(
     isPrimary: boolean('is_primary').notNull().default(false),
     validFrom: date('valid_from').notNull(),
     validTo: date('valid_to'),
+    primaryRuleVersion: text('primary_rule_version'),
+    primaryRuleReason: text('primary_rule_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -269,6 +271,7 @@ export const filings = pgTable('filings', {
   status: filingStatusEnum('status').notNull(),
   rawFileId: uuid('raw_file_id').references(() => rawSourceFiles.id, { onDelete: 'set null' }),
   validationResult: jsonb('validation_result'),
+  publicationDate: date('publication_date'),
   availableAt: timestamp('available_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -335,6 +338,7 @@ export const marketSnapshots = pgTable(
     currency: varchar('currency', { length: 255 }).notNull().default('BRL'),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
     rawJson: jsonb('raw_json'),
+    sharesOutstanding: numeric('shares_outstanding'),
   },
   (t) => [unique('uq_market_snapshots_security_fetched').on(t.securityId, t.fetchedAt)],
 );
@@ -738,6 +742,141 @@ export const plan2ThesisScores = pgTable(
     unique('uq_plan2_thesis_scores_run_issuer').on(t.plan2RunId, t.issuerId),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Strategy Status Governance
+// ---------------------------------------------------------------------------
+
+export const strategyRoleEnum = pgEnum('strategy_role', [
+  'CONTROL',
+  'CANDIDATE',
+  'FRONTRUNNER',
+]);
+
+export const promotionStatusEnum = pgEnum('promotion_status', [
+  'NOT_EVALUATED',
+  'BLOCKED',
+  'PROMOTED',
+  'REJECTED',
+]);
+
+export const decisionSourceEnum = pgEnum('decision_source', [
+  'TECH_LEAD_REVIEW',
+  'AUTOMATED_PIPELINE',
+]);
+
+export const strategyStatusRegistry = pgTable('strategy_status_registry', {
+  id: uuid('id').primaryKey(),
+  strategyKey: varchar('strategy_key', { length: 100 }).notNull(),
+  strategyFingerprint: varchar('strategy_fingerprint', { length: 64 }).notNull(),
+  strategyType: strategyTypeEnum('strategy_type').notNull(),
+  role: strategyRoleEnum('role').notNull(),
+  promotionStatus: promotionStatusEnum('promotion_status').notNull(),
+  configJson: jsonb('config_json').notNull(),
+  evidenceSummary: text('evidence_summary').notNull(),
+  experimentIds: jsonb('experiment_ids').notNull().default([]),
+  isSharpeAvg: numeric('is_sharpe_avg'),
+  oosSharpeAvg: numeric('oos_sharpe_avg'),
+  promotionChecks: jsonb('promotion_checks').notNull().default({}),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).defaultNow().notNull(),
+  decidedBy: decisionSourceEnum('decided_by').notNull(),
+  supersededAt: timestamp('superseded_at', { withTimezone: true }),
+});
+
+// ---------------------------------------------------------------------------
+// Universe Classification (Plan 4)
+// ---------------------------------------------------------------------------
+
+export const universeClassEnum = pgEnum('universe_class', [
+  'CORE_ELIGIBLE',
+  'DEDICATED_STRATEGY_ONLY',
+  'PERMANENTLY_EXCLUDED',
+]);
+
+export const dedicatedStrategyTypeEnum = pgEnum('dedicated_strategy_type', [
+  'FINANCIAL',
+  'REAL_ESTATE_DEVELOPMENT',
+  'UNCLASSIFIED_HOLDING',
+]);
+
+export const permanentExclusionReasonEnum = pgEnum('permanent_exclusion_reason', [
+  'RETAIL_WHOLESALE',
+  'AIRLINE',
+  'TOURISM_HOSPITALITY',
+  'FOREIGN_RETAIL',
+  'NOT_A_COMPANY',
+]);
+
+export const classificationRuleCodeEnum = pgEnum('classification_rule_code', [
+  'SECTOR_MAP',
+  'ISSUER_OVERRIDE',
+]);
+
+export const universeClassifications = pgTable('universe_classifications', {
+  id: uuid('id').primaryKey(),
+  issuerId: uuid('issuer_id')
+    .notNull()
+    .references(() => issuers.id, { onDelete: 'cascade' }),
+  universeClass: universeClassEnum('universe_class').notNull(),
+  dedicatedStrategyType: dedicatedStrategyTypeEnum('dedicated_strategy_type'),
+  permanentExclusionReason: permanentExclusionReasonEnum('permanent_exclusion_reason'),
+  classificationRuleCode: classificationRuleCodeEnum('classification_rule_code').notNull(),
+  classificationReason: text('classification_reason').notNull(),
+  matchedSectorKey: text('matched_sector_key'),
+  policyVersion: varchar('policy_version', { length: 20 }).notNull(),
+  classifiedAt: timestamp('classified_at', { withTimezone: true }).defaultNow().notNull(),
+  supersededAt: timestamp('superseded_at', { withTimezone: true }),
+});
+
+// ---------------------------------------------------------------------------
+// NPY Research Panel + Dataset Governance (Plan 3C.2 + 3C.3)
+// ---------------------------------------------------------------------------
+
+export const npyResearchPanel = pgTable(
+  'npy_research_panel',
+  {
+    id: uuid('id').primaryKey(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id, { onDelete: 'cascade' }),
+    referenceDate: date('reference_date').notNull(),
+    primarySecurityId: uuid('primary_security_id').references(() => securities.id, {
+      onDelete: 'set null',
+    }),
+    dividendYield: numeric('dividend_yield'),
+    netBuybackYield: numeric('net_buyback_yield'),
+    netPayoutYield: numeric('net_payout_yield'),
+    dySourceTier: varchar('dy_source_tier', { length: 1 }),
+    nbySourceTier: varchar('nby_source_tier', { length: 1 }),
+    marketCapSourceTier: varchar('market_cap_source_tier', { length: 1 }),
+    sharesSourceTier: varchar('shares_source_tier', { length: 1 }),
+    npySourceTier: varchar('npy_source_tier', { length: 1 }),
+    qualityFlag: varchar('quality_flag', { length: 1 }),
+    formulaVersion: varchar('formula_version', { length: 60 }).notNull(),
+    datasetVersion: varchar('dataset_version', { length: 100 }).notNull(),
+    dyMetricId: uuid('dy_metric_id'),
+    nbyMetricId: uuid('nby_metric_id'),
+    npyMetricId: uuid('npy_metric_id'),
+    pitCompliant: boolean('pit_compliant'),
+    knowledgeDate: date('knowledge_date'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique('uq_npy_panel_issuer_date_version').on(t.issuerId, t.referenceDate, t.datasetVersion),
+  ],
+);
+
+export const npyDatasetVersions = pgTable('npy_dataset_versions', {
+  datasetVersion: varchar('dataset_version', { length: 100 }).primaryKey(),
+  referenceDate: date('reference_date').notNull(),
+  knowledgeDate: date('knowledge_date'),
+  pitMode: varchar('pit_mode', { length: 20 }).notNull().default('relaxed'),
+  formulaVersion: varchar('formula_version', { length: 60 }).notNull(),
+  rowCount: integer('row_count'),
+  qualityDistribution: jsonb('quality_distribution'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  frozenAt: timestamp('frozen_at', { withTimezone: true }),
+});
 
 export const plan2RubricScores = pgTable('plan2_rubric_scores', {
   id: uuid('id').primaryKey().defaultRandom(),

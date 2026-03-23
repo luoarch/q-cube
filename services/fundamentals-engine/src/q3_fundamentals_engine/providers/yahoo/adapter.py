@@ -39,6 +39,7 @@ def _parse_snapshot(ticker: str, info: YahooInfoPayload) -> MarketSnapshotData |
         volume=info.get("regularMarketVolume"),
         currency=info.get("currency", "BRL"),
         raw_json=dict(info),
+        shares_outstanding=info.get("sharesOutstanding"),
     )
 
 

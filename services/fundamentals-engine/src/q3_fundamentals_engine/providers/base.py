@@ -46,6 +46,7 @@ class YahooInfoPayload(TypedDict, total=False):
     currentPrice: float | None
     marketCap: float | int | None
     regularMarketVolume: float | int | None
+    sharesOutstanding: float | int | None
     currency: str
     symbol: str
     shortName: str
@@ -76,6 +77,7 @@ class MarketSnapshotData:
     volume: float | None
     currency: str
     raw_json: dict[str, Any]
+    shares_outstanding: float | int | None = None
 
 
 class MarketSnapshotProvider(Protocol):

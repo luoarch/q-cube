@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { useCreateStrategyRun, useStrategyRuns } from '../../../src/hooks/api/useStrategyRuns';
+import { useStrategyRegistry, getStatusLabel, getStatusColor } from '../../../src/hooks/api/useStrategyRegistry';
 
 import type { StrategyRunResponse, StrategyType } from '@q3/shared-contracts';
 
@@ -185,6 +186,7 @@ function RunCard({ run, expanded, onToggle }: { run: StrategyRunResponse; expand
 export default function StrategyPage() {
   const { data: runs, isLoading } = useStrategyRuns();
   const createRun = useCreateStrategyRun();
+  const { data: registry } = useStrategyRegistry();
   const [selected, setSelected] = useState<StrategyType>('magic_formula_brazil');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -195,6 +197,38 @@ export default function StrategyPage() {
       </header>
 
       <div style={{ padding: '1.5rem', maxWidth: 1100, overflow: 'auto', flex: 1 }}>
+        {/* Strategy validation status */}
+        {registry && registry.length > 0 && (
+          <div
+            style={{
+              marginBottom: '1rem',
+              padding: '0.75rem 1rem',
+              background: 'var(--bg-surface)',
+              borderRadius: 8,
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>
+              Empirical Validation Status
+            </div>
+            {registry.map((e) => {
+              const color = getStatusColor(e.promotionStatus);
+              return (
+                <div key={e.strategyFingerprint} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, minWidth: 140 }}>{e.strategyKey}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{getStatusLabel(e.role, e.promotionStatus)}</span>
+                  {e.oosSharpeAvg != null && (
+                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                      OOS Sharpe {e.oosSharpeAvg.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Create new run */}
         <div
           style={{

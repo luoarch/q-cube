@@ -5,6 +5,7 @@ PETR4_INFO = {
     "currentPrice": 38.50,
     "marketCap": 498_000_000_000,
     "regularMarketVolume": 25_000_000,
+    "sharesOutstanding": 5_446_501_379,
     "currency": "BRL",
     "shortName": "PETROBRAS PN",
     "symbol": "PETR4.SA",

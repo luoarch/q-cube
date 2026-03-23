@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { useRanking } from '../../../src/hooks/api/useRanking';
+import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
 import { useThesisRanking } from '../../../src/hooks/api/useThesisRanking';
 
 import type {
@@ -379,6 +380,9 @@ export default function RankingPage() {
           {displayCount} de {totalCount} ativos
         </span>
       </header>
+
+      {/* Strategy context banner */}
+      <StrategyContextBanner />
 
       {/* Thesis mode metadata banner */}
       {mode === 'thesis' && thesisMeta && <ThesisMetaBanner meta={thesisMeta} />}

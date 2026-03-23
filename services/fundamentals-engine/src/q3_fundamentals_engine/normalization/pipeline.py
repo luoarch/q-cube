@@ -162,7 +162,11 @@ class NormalizationPipeline:
             lines_created = 0
             seen_keys: set[tuple[str | None, str, str, str, str]] = set()
             for row in scoped_rows:
-                canonical_key = CanonicalKeyMapper.map(row.account_code)
+                canonical_key = CanonicalKeyMapper.map(
+                    row.account_code,
+                    label=row.account_description,
+                    statement_type=row.statement_type,
+                )
                 normalized_value = normalize_sign(canonical_key, row.value)
                 statement_type = _resolve_statement_type(row.statement_type)
                 scope_type = _resolve_scope_type(chosen_scope)

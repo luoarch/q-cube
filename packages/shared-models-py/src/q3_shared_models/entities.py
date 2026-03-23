@@ -85,6 +85,7 @@ class CanonicalKey(str, enum.Enum):
     cash_from_operations = "cash_from_operations"
     cash_from_investing = "cash_from_investing"
     cash_from_financing = "cash_from_financing"
+    shareholder_distributions = "shareholder_distributions"
 
 
 class MetricCode(str, enum.Enum):
@@ -102,6 +103,11 @@ class MetricCode(str, enum.Enum):
     cash_conversion = "cash_conversion"
     debt_to_ebitda = "debt_to_ebitda"
     interest_coverage = "interest_coverage"
+    dividend_yield = "dividend_yield"
+    net_buyback_yield = "net_buyback_yield"
+    net_payout_yield = "net_payout_yield"
+    nby_proxy_free = "nby_proxy_free"
+    npy_proxy_free = "npy_proxy_free"
 
 
 class SourceProvider(str, enum.Enum):
@@ -363,6 +369,8 @@ class Security(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[date | None] = mapped_column(Date)
+    primary_rule_version: Mapped[str | None] = mapped_column(String)
+    primary_rule_reason: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -394,6 +402,7 @@ class Filing(Base):
     available_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    publication_date: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -731,6 +740,7 @@ class MarketSnapshot(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     raw_json: Mapped[dict | None] = mapped_column(JSONB)
+    shares_outstanding: Mapped[float | None] = mapped_column(Numeric)
 
 
 # ---------------------------------------------------------------------------
@@ -971,3 +981,130 @@ class Plan2RubricScore(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Research panel (3C.2)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Strategy Status Governance
+# ---------------------------------------------------------------------------
+
+
+class StrategyStatusRegistry(Base):
+    __tablename__ = "strategy_status_registry"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    strategy_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    strategy_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    strategy_type: Mapped[str] = mapped_column(
+        Enum("magic_formula_original", "magic_formula_brazil", "magic_formula_hybrid", name="strategy_type", create_type=False),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(
+        Enum("CONTROL", "CANDIDATE", "FRONTRUNNER", name="strategy_role", create_type=False),
+        nullable=False,
+    )
+    promotion_status: Mapped[str] = mapped_column(
+        Enum("NOT_EVALUATED", "BLOCKED", "PROMOTED", "REJECTED", name="promotion_status", create_type=False),
+        nullable=False,
+    )
+    config_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    evidence_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    experiment_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    is_sharpe_avg: Mapped[float | None] = mapped_column(Numeric)
+    oos_sharpe_avg: Mapped[float | None] = mapped_column(Numeric)
+    promotion_checks: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    decided_by: Mapped[str] = mapped_column(
+        Enum("TECH_LEAD_REVIEW", "AUTOMATED_PIPELINE", name="decision_source", create_type=False),
+        nullable=False,
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------------------
+# Universe Classification (Plan 4)
+# ---------------------------------------------------------------------------
+
+
+class UniverseClassification(Base):
+    __tablename__ = "universe_classifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    universe_class: Mapped[str] = mapped_column(
+        Enum("CORE_ELIGIBLE", "DEDICATED_STRATEGY_ONLY", "PERMANENTLY_EXCLUDED", name="universe_class", create_type=False),
+        nullable=False,
+    )
+    dedicated_strategy_type: Mapped[str | None] = mapped_column(
+        Enum("FINANCIAL", "REAL_ESTATE_DEVELOPMENT", "UNCLASSIFIED_HOLDING", name="dedicated_strategy_type", create_type=False),
+    )
+    permanent_exclusion_reason: Mapped[str | None] = mapped_column(
+        Enum("RETAIL_WHOLESALE", "AIRLINE", "TOURISM_HOSPITALITY", "FOREIGN_RETAIL", "NOT_A_COMPANY", name="permanent_exclusion_reason", create_type=False),
+    )
+    classification_rule_code: Mapped[str] = mapped_column(
+        Enum("SECTOR_MAP", "ISSUER_OVERRIDE", name="classification_rule_code", create_type=False),
+        nullable=False,
+    )
+    classification_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    matched_sector_key: Mapped[str | None] = mapped_column(Text)
+    policy_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class NpyResearchPanel(Base):
+    __tablename__ = "npy_research_panel"
+    __table_args__ = (
+        UniqueConstraint("issuer_id", "reference_date", "dataset_version", name="uq_npy_panel_issuer_date_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reference_date: Mapped[date] = mapped_column(Date, nullable=False)
+    primary_security_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("securities.id", ondelete="SET NULL"),
+    )
+    dividend_yield: Mapped[float | None] = mapped_column(Numeric)
+    net_buyback_yield: Mapped[float | None] = mapped_column(Numeric)
+    net_payout_yield: Mapped[float | None] = mapped_column(Numeric)
+    dy_source_tier: Mapped[str | None] = mapped_column(String(1))
+    nby_source_tier: Mapped[str | None] = mapped_column(String(1))
+    market_cap_source_tier: Mapped[str | None] = mapped_column(String(1))
+    shares_source_tier: Mapped[str | None] = mapped_column(String(1))
+    npy_source_tier: Mapped[str | None] = mapped_column(String(1))
+    quality_flag: Mapped[str | None] = mapped_column(String(1))
+    formula_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    dy_metric_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    nby_metric_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    npy_metric_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    pit_compliant: Mapped[bool | None] = mapped_column(Boolean)
+    knowledge_date: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class NpyDatasetVersion(Base):
+    __tablename__ = "npy_dataset_versions"
+
+    dataset_version: Mapped[str] = mapped_column(String(100), primary_key=True)
+    reference_date: Mapped[date] = mapped_column(Date, nullable=False)
+    knowledge_date: Mapped[date | None] = mapped_column(Date)
+    pit_mode: Mapped[str] = mapped_column(String(20), nullable=False, server_default="relaxed")
+    formula_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    row_count: Mapped[int | None] = mapped_column(Integer)
+    quality_distribution: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

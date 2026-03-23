@@ -30,6 +30,9 @@ from q3_fundamentals_engine.metrics.roic import RoicStrategy
 from q3_fundamentals_engine.metrics.cash_conversion import CashConversionStrategy
 from q3_fundamentals_engine.metrics.debt_to_ebitda import DebtToEbitdaStrategy
 from q3_fundamentals_engine.metrics.interest_coverage import InterestCoverageStrategy
+from q3_fundamentals_engine.metrics.dividend_yield import compute_dividend_yield
+from q3_fundamentals_engine.metrics.net_buyback_yield import compute_net_buyback_yield
+from q3_fundamentals_engine.metrics.net_payout_yield import compute_net_payout_yield
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +58,7 @@ class MetricsEngine:
         ]
 
     # Strategies that depend on market_cap (market data, not CVM filings)
-    _MARKET_DEPENDENT_CODES = {MetricCode.enterprise_value, MetricCode.earnings_yield}
+    _MARKET_DEPENDENT_CODES = {MetricCode.enterprise_value, MetricCode.earnings_yield, MetricCode.dividend_yield}
 
     def compute_for_issuer(
         self,
@@ -97,6 +100,25 @@ class MetricsEngine:
             result = strategy.compute(values, filing_ids, market_cap=market_cap)
             if result is not None:
                 results.append(result)
+
+        # TTM-based metrics (need multi-quarter data, separate from single-period strategies)
+        if not only_market_dependent or MetricCode.dividend_yield in self._MARKET_DEPENDENT_CODES:
+            dy_result = compute_dividend_yield(
+                self._session, issuer_id, reference_date, market_cap=market_cap,
+            )
+            if dy_result is not None:
+                results.append(dy_result)
+
+            nby_result = compute_net_buyback_yield(
+                self._session, issuer_id, reference_date,
+            )
+            if nby_result is not None:
+                results.append(nby_result)
+
+            # NPY = DY + NBY (pure composition, no recomputation)
+            npy_result = compute_net_payout_yield(dy_result, nby_result)
+            if npy_result is not None:
+                results.append(npy_result)
 
         persisted: list[ComputedMetric] = []
         for r in results:

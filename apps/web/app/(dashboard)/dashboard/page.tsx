@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 
 import { useDashboard } from '../../../src/hooks/api/useDashboard';
+import { StrategyContextBanner } from '../../../src/components/StrategyContextBanner';
 
 const STAGE_COLORS: Record<string, string> = {
   completed: '#22c55e',
@@ -144,6 +145,8 @@ export default function DashboardPage() {
           Visao geral do sistema
         </span>
       </header>
+
+      <StrategyContextBanner />
 
       {isLoading ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
