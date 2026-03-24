@@ -238,12 +238,16 @@ def _build_implied_yield(ey, npy, valuation) -> ImpliedYieldBlock | None:
 
 
 def _load_quality(session: Session, issuer_id: str) -> QualityBlock | None:
+    # Semantic dedup: latest refinement per issuer from the most recent strategy run.
+    # If multiple runs refined the same issuer, pick the latest run's result.
     row = session.execute(text("""
-        SELECT refinement_score, earnings_quality_score, safety_score,
-               operating_consistency_score, capital_discipline_score
-        FROM refinement_results
-        WHERE issuer_id = :iid
-        ORDER BY created_at DESC LIMIT 1
+        SELECT rr.refinement_score, rr.earnings_quality_score, rr.safety_score,
+               rr.operating_consistency_score, rr.capital_discipline_score
+        FROM refinement_results rr
+        JOIN strategy_runs sr ON sr.id = rr.strategy_run_id
+        WHERE rr.issuer_id = :iid AND sr.status = 'completed'
+        ORDER BY sr.created_at DESC, rr.created_at DESC
+        LIMIT 1
     """), {"iid": issuer_id}).fetchone()
     if not row or row[0] is None:
         return None
@@ -280,8 +284,10 @@ def _load_thesis(session: Session, issuer_id: str) -> dict | None:
 
 def _load_refiner_flags(session: Session, issuer_id: str) -> list[dict] | None:
     row = session.execute(text("""
-        SELECT flags_json FROM refinement_results
-        WHERE issuer_id = :iid ORDER BY created_at DESC LIMIT 1
+        SELECT rr.flags_json FROM refinement_results rr
+        JOIN strategy_runs sr ON sr.id = rr.strategy_run_id
+        WHERE rr.issuer_id = :iid AND sr.status = 'completed'
+        ORDER BY sr.created_at DESC, rr.created_at DESC LIMIT 1
     """), {"iid": issuer_id}).fetchone()
     if not row or not row[0]:
         return None
@@ -300,8 +306,10 @@ def _get_metric(session: Session, issuer_id: str, metric_code: str):
 
 def _get_refiner_completeness(session: Session, issuer_id: str) -> float | None:
     row = session.execute(text("""
-        SELECT data_completeness_json FROM refinement_results
-        WHERE issuer_id = :iid ORDER BY created_at DESC LIMIT 1
+        SELECT rr.data_completeness_json FROM refinement_results rr
+        JOIN strategy_runs sr ON sr.id = rr.strategy_run_id
+        WHERE rr.issuer_id = :iid AND sr.status = 'completed'
+        ORDER BY sr.created_at DESC, rr.created_at DESC LIMIT 1
     """), {"iid": issuer_id}).fetchone()
     if not row or not row[0]:
         return None

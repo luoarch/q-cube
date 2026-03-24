@@ -16,6 +16,10 @@ EXPENSIVE_THRESHOLD = 30
 MIN_SECTOR_SIZE = 5
 
 
+SANITY_MAX_UPSIDE = 3.0  # 300% — suppress implied value above this
+SANITY_MIN_MARKET_CAP = 1.0  # R$1 — treat 0 or negative as invalid
+
+
 def compute_valuation(
     session: Session,
     issuer_id: str,
@@ -47,7 +51,19 @@ def compute_valuation(
         ORDER BY ms.fetched_at DESC LIMIT 1
     """), {"iid": issuer_id}).fetchone()
 
-    if price_row and price_row[0]:
+    # MF-2: Hard invalidation for market_cap <= 0
+    market_cap = float(price_row[1]) if price_row and price_row[1] else 0
+    if market_cap < SANITY_MIN_MARKET_CAP:
+        block.valuation_valid = False
+        block.suppression_reason = f"Market cap inválido (R$ {market_cap:,.0f})"
+        # Still set EY percentiles (useful for context) but suppress implied value
+        block.implied_price = None
+        block.implied_value_range = None
+        # Don't return early — still compute percentiles for label
+    else:
+        block.valuation_valid = True
+
+    if price_row and price_row[0] and float(price_row[0]) > 0:
         block.current_price = float(price_row[0])
 
     # Get universe EY distribution
@@ -107,7 +123,8 @@ def compute_valuation(
         block.label = ValuationLabel.EXPENSIVE
 
     # Implied value range (proxy)
-    if block.ey_sector_median and block.ey_sector_median > 0:
+    # MF-1: Only compute implied value if valuation data is valid
+    if block.valuation_valid and block.ey_sector_median and block.ey_sector_median > 0:
         ebit_row = session.execute(text("""
             SELECT sl.normalized_value
             FROM statement_lines sl
@@ -133,12 +150,23 @@ def compute_valuation(
             implied_equity = implied_ev - net_debt
             if implied_equity > 0:
                 implied_price = implied_equity / shares
-                block.implied_price = round(implied_price, 2)
-                block.implied_value_range = (
-                    round(implied_price * 0.85, 2),
-                    round(implied_price * 1.15, 2),
-                )
-                if block.current_price and block.current_price > 0:
-                    block.upside = round((implied_price / block.current_price) - 1, 4)
+                upside = (implied_price / block.current_price) - 1 if block.current_price and block.current_price > 0 else None
+
+                # MF-1: Sanity guard — suppress if upside is absurd
+                if upside is not None and abs(upside) > SANITY_MAX_UPSIDE:
+                    block.implied_price = None
+                    block.implied_value_range = None
+                    block.upside = None
+                    block.suppression_reason = (
+                        f"Proxy suppressed: implied upside {upside:.0%} exceeds sanity limit ({SANITY_MAX_UPSIDE:.0%}). "
+                        f"Likely EV distortion (implied_price=R${implied_price:.2f} vs current=R${block.current_price:.2f})"
+                    )
+                else:
+                    block.implied_price = round(implied_price, 2)
+                    block.implied_value_range = (
+                        round(implied_price * 0.85, 2),
+                        round(implied_price * 1.15, 2),
+                    )
+                    block.upside = round(upside, 4) if upside is not None else None
 
     return block

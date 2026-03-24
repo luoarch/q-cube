@@ -51,6 +51,8 @@ class QualityBlock:
 class ValuationBlock:
     label: ValuationLabel | None = None
     valuation_method: str = "earnings_yield_normalization_proxy"
+    valuation_valid: bool = True
+    suppression_reason: str = ""
     earnings_yield: float | None = None
     ey_universe_percentile: float | None = None
     ey_sector_percentile: float | None = None

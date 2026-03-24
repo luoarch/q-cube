@@ -66,18 +66,18 @@ def main() -> None:
             LIMIT 10
         """)).fetchall()]
 
-        # Top 10 from refiner-covered only
+        # Top 10 from refiner-covered only (deduplicated: latest run per ticker)
         refiner_top = [r[0] for r in session.execute(text("""
-            SELECT rr.ticker
+            SELECT DISTINCT ON (rr.ticker) rr.ticker
             FROM refinement_results rr
+            JOIN strategy_runs sr ON sr.id = rr.strategy_run_id AND sr.status = 'completed'
             JOIN securities se ON se.ticker = rr.ticker AND se.is_primary = true AND se.valid_to IS NULL
             JOIN universe_classifications uc ON uc.issuer_id = se.issuer_id
                 AND uc.universe_class = 'CORE_ELIGIBLE' AND uc.superseded_at IS NULL
             JOIN v_financial_statements_compat v ON v.ticker = rr.ticker
             WHERE v.ebit > 0
-            ORDER BY COALESCE(v.earnings_yield, 0) DESC
-            LIMIT 10
-        """)).fetchall()]
+            ORDER BY rr.ticker, sr.created_at DESC
+        """)).fetchall()[:10]]
 
         print(f"Refiner coverage: {len(refiner_tickers)} tickers")
         print(f"Brute Top 10: {brute_tickers}")
