@@ -1,204 +1,246 @@
 # MF-PILOT-01 — Institutional Pilot Protocol
 
-## Status: SHAPING COMPLETE — Awaiting Tech Lead approval
+## Status: SHAPING COMPLETE — Awaiting Tech Lead approval (v2)
 
 ---
 
 ## 1. Central Question
 
-> Does the APPROVED cohort generate practical utility superior to ranking/refiner alone, without increasing serious errors?
+> Does the APPROVED cohort generate practical utility superior to ranking alone and universe baseline, without increasing serious errors?
 
 ---
 
-## 2. Pilot Design
+## 2. Pilot Phases
 
-### Mode: Shadow (no capital at risk)
+### Phase 0 — Operational Shakeout (non-evaluated)
 
-Q3 runs prospectively alongside the evaluator's existing process. No trades executed based on Q3 output. All decisions logged in real-time, never retroadjusted.
+**Duration**: 1 full monthly cycle before pilot starts.
 
-### Duration: 6 months (minimum 3 for interim assessment)
+**Objective**: Validate that the expanded refiner (196 tickers), tracking pipeline, logging, and monthly report all work at scale. This phase does NOT count toward pilot metrics.
 
-| Month | Activity |
-|------:|---------|
-| 0 | Freeze engine rules. Expand refiner to full eligible universe. Run initial classification. |
-| 1-5 | Monthly classification cycle. Log decisions + human overrides. Track forward returns. |
-| 6 | Final assessment against predefined success/fail criteria. |
+| Check | Pass to proceed |
+|-------|:---------------:|
+| Refiner runs on 196 tickers without error | YES |
+| Decision engine produces valid output for ≥ 180 tickers | YES |
+| Classification distribution is non-degenerate (not 100% one status) | YES |
+| Forward return tracking pipeline logs correctly | YES |
+| Decision journal schema persists without data loss | YES |
+| Monthly report generates with all sections populated | YES |
 
-### Universe: CORE_ELIGIBLE with full refiner coverage
+If any check fails, fix and re-run Phase 0. Do not start Phase 1.
 
-Before pilot starts:
-- Expand refiner run from top-30 to **all 196 data-eligible tickers**
-- This resolves 82% of contingent BLOCKEDs
-- Pilot measures the engine at full operational capacity, not current 16% coverage
+### Phase 1 — Shadow Pilot (evaluated)
 
-### Frequency: Monthly classification cycle
+**Duration**: 6 months (interim review at month 3).
 
-1st business day of each month:
-1. Refresh market snapshots
-2. Run ranking
-3. Run refiner (full universe)
-4. Run decision engine
-5. Log all APPROVED / BLOCKED / REJECTED with full output
-6. Human evaluator reviews APPROVED list, records agree/disagree/override
+**Mode**: Shadow only. No capital at risk. All decisions logged prospectively. No retroadjustment.
+
+**Frequency**: Monthly classification cycle (1st business day).
 
 ---
 
-## 3. Frozen Rules
+## 3. Universe & Baseline Comparisons
 
-During the pilot, the following are **immutable**:
+### Universe
+
+CORE_ELIGIBLE with full refiner coverage (196 data-eligible tickers).
+
+### Three comparison cohorts
+
+| Cohort | Definition | Purpose |
+|--------|-----------|---------|
+| **APPROVED** | Decision engine APPROVED output | Primary test subject |
+| **RANKING TOP-N** | Top 20 by EY from compat view (no decision filter) | Baseline: is decision engine better than pure ranking? |
+| **UNIVERSE EW** | Equal-weight all 196 eligible tickers | Baseline: is selection better than no selection? |
+
+All forward returns measured on the same dates, same universe, same period.
+
+---
+
+## 4. Frozen Rules
+
+During Phase 1, the following are **immutable**:
 
 | Component | Frozen version |
 |-----------|---------------|
 | Decision thresholds | quality ≥ 0.5, yield ≥ dynamic, confidence ≥ MEDIUM |
 | Sanity guards | upside > 300% suppression, mcap = 0 invalidation |
-| Confidence penalties | refiner -0.15, thesis -0.10, sector fallback -0.10, drivers -0.10, valuation -0.20 |
-| Risk gates | critical risk thresholds (leverage > 5x, coverage < 1x, cash conv < -0.5) |
-| Strategy registry | ctrl_original REJECTED, ctrl_brazil REJECTED, hybrid_20q BLOCKED |
+| Confidence penalties | refiner -0.15, thesis -0.10, sector -0.10, drivers -0.10, valuation -0.20 |
+| Risk gates | leverage > 5x, coverage < 1x, cash conv < -0.5 |
+| Strategy registry | All current entries unchanged |
 
-No engine changes during pilot. Bug fixes only (with documentation).
-
----
-
-## 4. Predefined Metrics
-
-### Primary metrics (monthly)
-
-| Metric | Definition | Target |
-|--------|-----------|--------|
-| **APPROVED forward return** | Equal-weight return of APPROVED cohort over 1/3/6 months | Positive |
-| **Relative return** | APPROVED return minus BLOCKED return | Positive |
-| **Benchmark-relative** | APPROVED return minus Ibovespa | Positive (6-month horizon) |
-| **Hit rate** | % of APPROVED names with positive return at 3 months | > 55% |
-| **Max drawdown** | Worst peak-to-trough of APPROVED cohort | < 20% |
-
-### Secondary metrics (monthly)
-
-| Metric | Definition | Target |
-|--------|-----------|--------|
-| **False positive rate** | % of APPROVED names that lose > 15% in 3 months | < 20% |
-| **False negative rate** | % of BLOCKED names that gain > 20% in 3 months | Reported (no target) |
-| **Suppression usefulness** | % of suppressed valuations where proxy would have been misleading | > 70% |
-| **Override rate** | % of APPROVED where human evaluator disagrees | < 30% |
-| **REJECTED accuracy** | % of REJECTED names that underperform universe | > 60% |
-
-### Governance metrics
-
-| Metric | Definition |
-|--------|-----------|
-| Coverage rate | % of universe with non-BLOCKED classification |
-| Refusal rate | % classified as BLOCKED |
-| Classification stability | % of names that changed status month-over-month |
-| Engine drift | Any deviation from frozen rules (should be 0) |
+Bug fixes only (with documentation and justification).
 
 ---
 
-## 5. Success Criteria (at 6 months)
+## 5. Success Criteria (hierarchical)
 
-### PASS (pilot successful — justify next phase)
+### Primary criterion (signal validation)
 
-All of:
-- APPROVED cohort return > BLOCKED cohort return (3 of 6 months minimum)
-- APPROVED hit rate > 55% at 3-month horizon
-- False positive rate < 20%
-- Override rate < 30% (human agrees with most approvals)
-- No engine drift (rules frozen throughout)
+| Criterion | Definition | Target |
+|-----------|-----------|--------|
+| **APPROVED > Ranking Top-20** | APPROVED 3-month return > Ranking Top-20 3-month return | Positive in ≥ 3 of 6 months |
+| **APPROVED > Universe EW** | APPROVED 3-month return > Universe equal-weight return | Positive in ≥ 3 of 6 months |
 
-### INCONCLUSIVE (extend pilot)
+Both must pass. If APPROVED doesn't beat at least one baseline consistently, the decision layer doesn't add signal.
 
-Any of:
-- APPROVED outperforms in 2/6 months but not 3
-- Hit rate between 45-55%
-- Override rate between 30-50%
+### Secondary criteria (quality metrics)
 
-### FAIL (pilot does not justify next phase)
+| Criterion | Definition | Target |
+|-----------|-----------|--------|
+| Hit rate | % of APPROVED names with positive excess return vs Ibovespa at 3 months | > 55% |
+| False positive rate | % of APPROVED names with excess return < -10% vs Ibovespa at 3 months | < 20% |
+| False negative rate | % of BLOCKED names with excess return > +15% vs Ibovespa at 3 months | Reported, no hard target |
+| Override rate | % of APPROVED where evaluator disagrees | < 30% |
+| REJECTED accuracy | % of REJECTED names that underperform Ibovespa at 3 months | > 60% |
 
-Any of:
-- APPROVED cohort return < BLOCKED cohort return (4+ of 6 months)
-- Hit rate < 45%
-- False positive rate > 30%
-- Override rate > 50% (human disagrees with most approvals)
+**Note on FP/FN thresholds**: Defined as excess return vs Ibovespa (benchmark-adjusted), not absolute. This controls for market/beta effects. Thresholds (-10% FP, +15% FN) are asymmetric by design: false approvals are more costly than false blocks.
 
----
+### Operational integrity criteria
 
-## 6. Fail Criteria (hard stops)
-
-| Condition | Action |
+| Criterion | Target |
 |-----------|--------|
-| APPROVED cohort drawdown > 30% | Pause pilot, review |
-| Engine produces identical output 3 months in row (stale data) | Pause, investigate |
-| > 3 APPROVED names hit critical risk post-classification | Review risk gates |
+| Engine drift | 0 (frozen rules throughout) |
+| Missing runs | 0 (all 6 monthly cycles completed) |
+| Log integrity | Append-only, no retroadjustment |
+| Phase 0 passed | YES |
 
 ---
 
-## 7. Prospective Logging
+## 6. PASS / INCONCLUSIVE / FAIL
 
-### Decision journal (per cycle)
+### PASS (justify next phase)
 
-For each monthly run, persist:
+- Primary: both APPROVED > Ranking Top-20 AND APPROVED > Universe EW in ≥ 3/6 months
+- Secondary: hit rate > 55%, FP < 20%, override < 30%
+- Operational: all integrity criteria met
 
-```json
-{
-  "cycle": "2026-04",
-  "run_date": "2026-04-01T09:00:00Z",
-  "engine_version": "v1.0-frozen",
-  "universe_size": 196,
-  "classification_counts": {"APPROVED": 45, "BLOCKED": 80, "REJECTED": 71},
-  "approved_tickers": ["VALE3", "CMIG3", ...],
-  "human_overrides": [
-    {"ticker": "VALE3", "system": "APPROVED", "human": "AGREE", "note": ""},
-    {"ticker": "ABEV3", "system": "BLOCKED", "human": "WOULD_APPROVE", "note": "Strong brand moat not captured"}
-  ],
-  "forward_returns": null  // populated at T+1, T+3, T+6 months
-}
-```
+### INCONCLUSIVE (extend 3 months)
 
-No retroadjustment. Journal is append-only. Forward returns filled in later from market data.
+- Primary passes 1 of 2 baselines but not both, OR passes in 2/6 months
+- Secondary: hit rate 45-55% or override 30-40%
 
-### Monthly report
+### FAIL (does not justify next phase)
 
-| Section | Content |
-|---------|---------|
-| Classification summary | Counts + changes from prior month |
-| Forward returns (lagged) | T+1 for prior month, T+3 for 3 months ago |
-| Override analysis | Where human disagreed, why |
-| Risk events | Any APPROVED name that hit a critical threshold |
-| Suppression review | Were suppressed proxies correct in hindsight? |
+- Primary: APPROVED < both baselines in ≥ 4/6 months
+- OR: hit rate < 45%
+- OR: FP > 30%
+- OR: override > 50%
+- OR: operational integrity violated
 
 ---
 
-## 8. What Would Justify Next Phase
+## 7. Hard Stops
+
+| Condition | Check method | Action |
+|-----------|-------------|--------|
+| APPROVED cohort drawdown > 30% vs start of pilot | Monthly mark-to-market | Pause, review risk gates |
+| Stale data: upstream snapshot freshness > 14 days for > 50% of universe | Check `fetched_at` timestamps | Pause, investigate data pipeline |
+| ≥ 3 APPROVED names hit critical risk thresholds post-classification | Monthly risk scan | Review gates, document |
+| Evaluator signals systematic disagreement (override > 60% for 2 consecutive months) | Override log | Pause, recalibrate or end |
+
+---
+
+## 8. Evaluator Protocol
+
+### Reviewer definition
+
+- **Primary evaluator**: 1 designated analyst or portfolio manager
+- **Rubric**: Fixed decision rubric (agree / disagree-would-approve / disagree-would-block / disagree-would-reject)
+- **Override reasons**: Standardized taxonomy:
+  - `RISK_NOT_CAPTURED` — system missed a material risk
+  - `QUALITY_OVERRATED` — refiner score doesn't reflect reality
+  - `VALUATION_DISAGREE` — EY proxy misrepresents value
+  - `THESIS_DISAGREE` — thesis/sector classification wrong
+  - `DATA_STALE` — underlying data is outdated
+  - `OTHER` — free text (max 100 chars)
+
+### Review process
+
+- Evaluator reviews ALL APPROVED names (expected ~30-50 per cycle)
+- Reviews a random sample of 10 BLOCKED names per cycle
+- Logs override + reason within 5 business days of classification
+- No communication of Q3 output to investment decisions during shadow period
+
+---
+
+## 9. Monthly Report
+
+### Section 1 — Pipeline Coverage
+
+| Metric | Reported |
+|--------|:--------:|
+| Universe size | YES |
+| Refiner coverage achieved | YES |
+| Thesis coverage | YES |
+| Decision coverage (non-BLOCKED) | YES |
+| Valuation suppression rate | YES |
+| Market data invalidation rate | YES |
+
+### Section 2 — Classification Summary
+
+- APPROVED / BLOCKED / REJECTED counts
+- Month-over-month status changes (stability metric)
+- New entrants / exits from each cohort
+
+### Section 3 — Forward Returns (lagged)
+
+- T+1 month returns for prior cycle
+- T+3 month returns for 3 cycles ago
+- APPROVED vs Ranking Top-20 vs Universe EW
+- Cohort Sharpe (if enough data points)
+
+### Section 4 — Override Analysis
+
+- Override count and rate
+- Breakdown by reason
+- Where evaluator disagreed, what was the subsequent return
+
+### Section 5 — Risk Events
+
+- APPROVED names that subsequently hit critical thresholds
+- REJECTED names that subsequently recovered (potential false negatives)
+- Suppression review: were suppressed proxies correct in hindsight?
+
+---
+
+## 10. What Would Justify Next Phase
 
 If PASS at 6 months:
 
-1. **Coverage expansion**: Expand thesis layer to full universe
+1. **Thesis expansion**: Full Plan 2 coverage on 196 tickers
 2. **Confidence recalibration**: Adjust penalties based on override patterns
-3. **Strategy promotion**: Re-evaluate hybrid_20q with 2 additional OOS splits
-4. **Production deployment**: Live signal generation (still shadow, but integrated into workflow)
+3. **Strategy re-evaluation**: hybrid_20q with 2 additional OOS splits from pilot period
+4. **Production integration**: Live signal generation, integrated into research workflow (still shadow)
+5. **Second pilot**: Longer horizon (12 months), potentially with paper portfolio
 
 ---
 
-## 9. What This Pilot Does NOT Do
+## 11. What This Pilot Does NOT Do
 
 - Does not allocate capital
 - Does not replace human judgment
 - Does not prove long-term alpha
 - Does not validate all parameter choices
 - Does not test portfolio construction or execution
+- Does not guarantee the system works in all market regimes
 
-It answers one question only:
+It answers one question:
 
 > **Does the classification add useful signal to the investment process?**
 
 ---
 
-## 10. Pre-Pilot Checklist
+## 12. Pre-Pilot Checklist
 
-| Item | Status | Required before start |
-|------|:------:|:--------------------:|
+| Item | Status | Required |
+|------|:------:|:--------:|
 | Refiner expanded to 196 tickers | Pending | YES |
 | Engine rules frozen + versioned | Ready | YES |
-| Decision journal schema defined | Ready | YES |
+| Decision journal schema | Ready | YES |
 | Forward return tracking pipeline | Pending | YES |
-| Human evaluator identified | Pending | YES |
+| Primary evaluator identified + trained | Pending | YES |
+| Override rubric + reason taxonomy | Ready | YES |
 | Monthly report template | Ready | YES |
+| Phase 0 shakeout passed | Pending | YES |
 | Baseline classification run (month 0) | Pending | YES |
