@@ -71,6 +71,8 @@ class ImpliedYieldBlock:
     label: str = ""
     meets_minimum: bool = False
     minimum_threshold: float = 0.0
+    outlier: bool = False
+    outlier_reason: str = ""
 
 
 @dataclass
@@ -91,12 +93,22 @@ class Risk:
 
 
 @dataclass
+class ConfidenceBreakdown:
+    missing_refiner_data: bool = False
+    missing_thesis_data: bool = False
+    sector_fallback_used: bool = False
+    drivers_count_penalty: bool = False
+    valuation_missing_penalty: bool = False
+
+
+@dataclass
 class ConfidenceBlock:
     score: float
     label: ConfidenceLabel
     data_completeness: float
     evidence_quality: str
     penalties: list[str] = field(default_factory=list)
+    breakdown: ConfidenceBreakdown = field(default_factory=ConfidenceBreakdown)
 
 
 @dataclass

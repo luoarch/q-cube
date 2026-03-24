@@ -1,7 +1,7 @@
 """Confidence scoring with explicit penalties."""
 from __future__ import annotations
 
-from q3_quant_engine.decision.types import ConfidenceBlock, ConfidenceLabel, ValuationBlock
+from q3_quant_engine.decision.types import ConfidenceBlock, ConfidenceBreakdown, ConfidenceLabel, ValuationBlock
 
 
 EVIDENCE_MAP = {
@@ -27,22 +27,31 @@ def compute_confidence(
 
     penalties: list[str] = []
     penalty_total = 0.0
+    breakdown = ConfidenceBreakdown()
 
-    if valuation is None or valuation.earnings_yield is None:
+    val_missing = valuation is None or valuation.earnings_yield is None
+    if val_missing:
         penalties.append("valuation_null (-0.20)")
         penalty_total += 0.20
+        breakdown.valuation_missing_penalty = True
 
     if driver_count < 3:
         penalties.append(f"drivers_insufficient ({driver_count}<3, -0.10)")
         penalty_total += 0.10
+        breakdown.drivers_count_penalty = True
 
     if sector_fallback:
         penalties.append("sector_fallback (-0.10)")
         penalty_total += 0.10
+        breakdown.sector_fallback_used = True
 
     if not has_refiner:
         penalties.append("refiner_missing (-0.15)")
         penalty_total += 0.15
+        breakdown.missing_refiner_data = True
+
+    if evidence_quality is None:
+        breakdown.missing_thesis_data = True
 
     score = max(0.0, raw - penalty_total)
 
@@ -59,4 +68,5 @@ def compute_confidence(
         data_completeness=round(base_data, 4),
         evidence_quality=evidence_quality or "UNKNOWN",
         penalties=penalties,
+        breakdown=breakdown,
     )

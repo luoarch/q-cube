@@ -201,12 +201,30 @@ def _governance_note() -> str:
     )
 
 
+OUTLIER_YIELD_THRESHOLD = 0.40  # 40% — flag for audit
+
+
 def _build_implied_yield(ey, npy, valuation) -> ImpliedYieldBlock | None:
     if ey is None:
         return None
     npy_val = float(npy) if npy is not None else 0.0
     total = ey + npy_val
     threshold = _dynamic_yield_threshold(valuation)
+
+    # Outlier detection
+    outlier = False
+    outlier_reason = ""
+    if total > OUTLIER_YIELD_THRESHOLD:
+        outlier = True
+        reasons = []
+        if ey > 0.30:
+            reasons.append(f"EY={ey:.1%} extremamente alto (possível EV distorcido)")
+        if npy_val > 0.15:
+            reasons.append(f"NPY={npy_val:.1%} extremamente alto")
+        if not reasons:
+            reasons.append(f"Yield total {total:.1%} acima do limiar de outlier ({OUTLIER_YIELD_THRESHOLD:.0%})")
+        outlier_reason = "; ".join(reasons)
+
     return ImpliedYieldBlock(
         earnings_yield=ey,
         net_payout_yield=npy_val,
@@ -214,6 +232,8 @@ def _build_implied_yield(ey, npy, valuation) -> ImpliedYieldBlock | None:
         label=f"Implied yield {total:.1%} (EY + payout, sem crescimento)",
         meets_minimum=total >= threshold,
         minimum_threshold=round(threshold, 4),
+        outlier=outlier,
+        outlier_reason=outlier_reason,
     )
 
 
