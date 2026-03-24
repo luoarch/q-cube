@@ -1,5 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { assetDetailSchema } from '@q3/shared-contracts';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { assetDetailSchema, tickerDecisionSchema } from '@q3/shared-contracts';
 import { sql } from 'drizzle-orm';
 
 import { DB } from '../database/database.constants.js';
@@ -9,7 +10,15 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 @Injectable()
 export class AssetService {
-  constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {}
+  private readonly logger = new Logger(AssetService.name);
+  private readonly quantEngineUrl: string;
+
+  constructor(
+    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
+    config: ConfigService,
+  ) {
+    this.quantEngineUrl = config.get('QUANT_ENGINE_URL') ?? 'http://localhost:8100';
+  }
 
   async getByTicker(ticker: string, _tenantId: string) {
     // Main query: fundamentals from compat view + derived metrics
@@ -290,5 +299,18 @@ export class AssetService {
     if (!exact && !freeSource) return null;
 
     return { exact, freeSource };
+  }
+
+  async getTickerDecision(ticker: string) {
+    try {
+      const res = await fetch(`${this.quantEngineUrl}/decision/${ticker}`);
+      if (!res.ok) {
+        throw new NotFoundException(`Decision not available for ${ticker}`);
+      }
+      return await res.json();
+    } catch (e) {
+      this.logger.warn(`Failed to fetch decision for ${ticker}: ${e}`);
+      throw new NotFoundException(`Decision engine unavailable for ${ticker}`);
+    }
   }
 }

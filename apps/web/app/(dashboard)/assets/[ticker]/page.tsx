@@ -5,7 +5,9 @@ import { use } from 'react';
 
 import { useAssetDetail } from '../../../../src/hooks/api/useAssetDetail';
 import { useThesisBreakdown } from '../../../../src/hooks/api/useThesisBreakdown';
+import { useTickerDecision } from '../../../../src/hooks/api/useTickerDecision';
 import { GUARDRAIL_TOOLTIPS } from '../../../../src/components/MethodologicalDisclaimer';
+import { TickerDecisionCard } from '../../../../src/components/TickerDecisionCard';
 
 import type { Plan2BreakdownResponse, DimensionBreakdownItem, ThesisBucket, EvidenceQuality, ScoreSourceType } from '@q3/shared-contracts';
 
@@ -315,6 +317,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
   const { ticker } = use(params);
   const { data: asset, isLoading } = useAssetDetail(ticker);
   const { data: breakdown } = useThesisBreakdown(ticker);
+  const { data: decision } = useTickerDecision(ticker);
 
   if (isLoading) {
     return (
@@ -507,6 +510,9 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
 
         {/* Thesis Breakdown */}
         {breakdown && <ThesisBreakdownSection breakdown={breakdown} />}
+
+        {/* Ticker Decision */}
+        {decision && <TickerDecisionCard decision={decision} />}
       </div>
     </div>
   );

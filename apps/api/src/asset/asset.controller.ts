@@ -21,4 +21,13 @@ export class AssetController {
     }
     return this.assetService.getByTicker(normalized, user.tenantId);
   }
+
+  @Get(':ticker/decision')
+  async getDecision(@Param('ticker') ticker: string) {
+    const normalized = ticker.toUpperCase();
+    if (!TICKER_RE.test(normalized)) {
+      throw new BadRequestException('Invalid ticker format');
+    }
+    return this.assetService.getTickerDecision(normalized);
+  }
 }

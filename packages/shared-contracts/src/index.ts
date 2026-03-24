@@ -28,3 +28,4 @@ export * from './domains/chat.js';
 export * from './domains/user-context.js';
 export * from './domains/source.js';
 export * from './domains/thesis.js';
+export * from './domains/decision.js';

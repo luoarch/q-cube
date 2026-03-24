@@ -23,6 +23,11 @@ from q3_quant_engine.thesis.router import router as plan2_router  # noqa: E402
 
 app.include_router(plan2_router)
 
+# Ticker Decision Engine API
+from q3_quant_engine.decision.router import router as decision_router  # noqa: E402
+
+app.include_router(decision_router)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
