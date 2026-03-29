@@ -1108,3 +1108,81 @@ class NpyDatasetVersion(Base):
     quality_distribution: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------------------
+# CVM Share Counts (Plan 5)
+# ---------------------------------------------------------------------------
+
+
+class CVMShareCount(Base):
+    """CVM composicao_capital share counts — PIT time series.
+
+    Source: CVM DFP/ITR ZIP → composicao_capital CSV.
+    One row per (issuer, reference_date, document_type).
+    knowledge_date is NOT stored here — it is a lookup parameter (see Plan 5 §6.2).
+    """
+
+    __tablename__ = "cvm_share_counts"
+    __table_args__ = (
+        UniqueConstraint("issuer_id", "reference_date", "document_type", name="uq_cvm_shares_issuer_date_doctype"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issuer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("issuers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reference_date: Mapped[date] = mapped_column(Date, nullable=False)
+    document_type: Mapped[str] = mapped_column(String(3), nullable=False)  # 'DFP' or 'ITR'
+    total_shares: Mapped[float] = mapped_column(Numeric, nullable=False)
+    treasury_shares: Mapped[float] = mapped_column(Numeric, nullable=False)
+    net_shares: Mapped[float] = mapped_column(Numeric, nullable=False)
+    publication_date_estimated: Mapped[date] = mapped_column(Date, nullable=False)
+    source_file: Mapped[str] = mapped_column(Text, nullable=False)
+    loaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Pilot Runtime (MF-RUNTIME-01A)
+# ---------------------------------------------------------------------------
+
+
+class RankingSnapshot(Base):
+    """Daily snapshot of ranking state for pilot forward return tracking."""
+
+    __tablename__ = "ranking_snapshots"
+    __table_args__ = (
+        UniqueConstraint("snapshot_date", "ticker", name="uq_ranking_snapshots_date_ticker"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    model_family: Mapped[str] = mapped_column(String, nullable=False)
+    rank_within_model: Mapped[int] = mapped_column(Integer, nullable=False)
+    composite_score: Mapped[float | None] = mapped_column(Numeric)
+    investability_status: Mapped[str] = mapped_column(String, nullable=False)
+    earnings_yield: Mapped[float | None] = mapped_column(Numeric)
+    return_on_capital: Mapped[float | None] = mapped_column(Numeric)
+    net_payout_yield: Mapped[float | None] = mapped_column(Numeric)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ForwardReturn(Base):
+    """Realized forward returns per snapshot/ticker/horizon."""
+
+    __tablename__ = "forward_returns"
+    __table_args__ = (
+        UniqueConstraint("snapshot_date", "ticker", "horizon", name="uq_forward_returns_date_ticker_horizon"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    horizon: Mapped[str] = mapped_column(String, nullable=False)
+    price_t0: Mapped[float | None] = mapped_column(Numeric)
+    price_tn: Mapped[float | None] = mapped_column(Numeric)
+    return_value: Mapped[float | None] = mapped_column(Numeric)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

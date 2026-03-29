@@ -878,6 +878,72 @@ export const npyDatasetVersions = pgTable('npy_dataset_versions', {
   frozenAt: timestamp('frozen_at', { withTimezone: true }),
 });
 
+// ---------------------------------------------------------------------------
+// CVM Share Counts (Plan 5)
+// ---------------------------------------------------------------------------
+
+export const cvmShareCounts = pgTable(
+  'cvm_share_counts',
+  {
+    id: uuid('id').primaryKey(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id, { onDelete: 'cascade' }),
+    referenceDate: date('reference_date').notNull(),
+    documentType: varchar('document_type', { length: 3 }).notNull(), // 'DFP' or 'ITR'
+    totalShares: numeric('total_shares').notNull(),
+    treasuryShares: numeric('treasury_shares').notNull(),
+    netShares: numeric('net_shares').notNull(),
+    publicationDateEstimated: date('publication_date_estimated').notNull(),
+    sourceFile: text('source_file').notNull(),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique('uq_cvm_shares_issuer_date_doctype').on(t.issuerId, t.referenceDate, t.documentType),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Pilot Runtime (MF-RUNTIME-01A)
+// ---------------------------------------------------------------------------
+
+export const rankingSnapshots = pgTable(
+  'ranking_snapshots',
+  {
+    id: uuid('id').primaryKey(),
+    snapshotDate: date('snapshot_date').notNull(),
+    ticker: varchar('ticker', { length: 255 }).notNull(),
+    modelFamily: varchar('model_family', { length: 20 }).notNull(),
+    rankWithinModel: integer('rank_within_model').notNull(),
+    compositeScore: numeric('composite_score'),
+    investabilityStatus: varchar('investability_status', { length: 30 }).notNull(),
+    earningsYield: numeric('earnings_yield'),
+    returnOnCapital: numeric('return_on_capital'),
+    netPayoutYield: numeric('net_payout_yield'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique('uq_ranking_snapshots_date_ticker').on(t.snapshotDate, t.ticker),
+  ],
+);
+
+export const forwardReturns = pgTable(
+  'forward_returns',
+  {
+    id: uuid('id').primaryKey(),
+    snapshotDate: date('snapshot_date').notNull(),
+    ticker: varchar('ticker', { length: 255 }).notNull(),
+    horizon: varchar('horizon', { length: 10 }).notNull(),
+    priceT0: numeric('price_t0'),
+    priceTn: numeric('price_tn'),
+    returnValue: numeric('return_value'),
+    computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique('uq_forward_returns_date_ticker_horizon').on(t.snapshotDate, t.ticker, t.horizon),
+  ],
+);
+
 export const plan2RubricScores = pgTable('plan2_rubric_scores', {
   id: uuid('id').primaryKey().defaultRandom(),
   issuerId: uuid('issuer_id')
