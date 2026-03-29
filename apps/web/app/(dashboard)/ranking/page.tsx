@@ -147,7 +147,31 @@ function ThesisMetaBanner({ meta }: { meta: Plan2RunMetadata }) {
 // Core Ranking Table
 // ---------------------------------------------------------------------------
 
-function CoreRankingTable({ items }: { items: RankingItem[] }) {
+const MODEL_COLORS: Record<string, string> = {
+  NPY_ROC: '#22c55e',
+  EY_ROC: '#94a3b8',
+};
+
+function ModelChip({ model }: { model: string }) {
+  const color = MODEL_COLORS[model] ?? '#94a3b8';
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        padding: '1px 6px',
+        borderRadius: 8,
+        background: `${color}18`,
+        color,
+        letterSpacing: '0.03em',
+      }}
+    >
+      {model === 'NPY_ROC' ? 'NPY+ROC' : 'EY+ROC'}
+    </span>
+  );
+}
+
+function CoreRankingTable({ items, showModel }: { items: RankingItem[]; showModel?: boolean }) {
   return (
     <table className="ranking-table">
       <thead>
@@ -156,16 +180,16 @@ function CoreRankingTable({ items }: { items: RankingItem[] }) {
           <th>Ticker</th>
           <th>Empresa</th>
           <th>Setor</th>
-          <th style={{ textAlign: 'right' }}>Earnings Yield</th>
+          {showModel && <th style={{ textAlign: 'center' }}>Modelo</th>}
+          <th style={{ textAlign: 'right' }}>NPY</th>
           <th style={{ textAlign: 'right' }}>ROIC</th>
           <th style={{ textAlign: 'right' }}>Market Cap</th>
           <th style={{ textAlign: 'center' }}>Quality</th>
-          <th style={{ textAlign: 'center' }}>Liquidez</th>
         </tr>
       </thead>
       <tbody>
         {items.map((item) => (
-          <tr key={item.ticker}>
+          <tr key={item.ticker} style={{ opacity: item.investabilityStatus === 'partially_evaluated' ? 0.6 : 1 }}>
             <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>
               {item.rankWithinModel}
             </td>
@@ -181,14 +205,19 @@ function CoreRankingTable({ items }: { items: RankingItem[] }) {
               {item.name}
             </td>
             <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.sector}</td>
+            {showModel && (
+              <td style={{ textAlign: 'center' }}>
+                <ModelChip model={item.modelFamily} />
+              </td>
+            )}
             <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 13 }}>
-              {formatPercent(item.earningsYield)}
+              {item.netPayoutYield != null ? formatPercent(item.netPayoutYield) : '—'}
             </td>
             <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 13 }}>
               {formatPercent(item.returnOnCapital)}
             </td>
             <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 13 }}>
-              {formatNumber(item.marketCap)}
+              {item.marketCap > 0 ? formatNumber(item.marketCap) : '—'}
             </td>
             <td style={{ textAlign: 'center' }}>
               <span
@@ -203,9 +232,6 @@ function CoreRankingTable({ items }: { items: RankingItem[] }) {
               >
                 {item.quality}
               </span>
-            </td>
-            <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
-              {item.liquidity}
             </td>
           </tr>
         ))}
@@ -469,6 +495,37 @@ export default function RankingPage() {
         )}
       </div>
 
+      {/* Summary banner */}
+      {mode === 'core' && coreSummary && (
+        <div
+          style={{
+            padding: '0.5rem 1.25rem',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'rgba(34, 197, 94, 0.04)',
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.25rem',
+          }}
+        >
+          <span>
+            <span style={{ color: '#22c55e', fontWeight: 600 }}>{coreSummary.primaryCount}</span> NPY+ROC
+          </span>
+          <span>
+            <span style={{ color: '#94a3b8', fontWeight: 600 }}>{coreSummary.secondaryCount}</span> EY+ROC
+          </span>
+          <span style={{ opacity: 0.7 }}>
+            {coreSummary.totalUniverse} universo total
+          </span>
+          {coreSummary.missingDataBreakdown && Object.keys(coreSummary.missingDataBreakdown).length > 0 && (
+            <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem', opacity: 0.7 }}>
+              dados faltantes: {Object.entries(coreSummary.missingDataBreakdown).map(([k, v]) => `${k.replace('missing_', '')}=${v}`).join(', ')}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {isLoading ? (
@@ -480,13 +537,25 @@ export default function RankingPage() {
             Nenhuma run do Plano 2 encontrada. Execute uma run primeiro.
           </div>
         ) : mode === 'core' ? (
-          <CoreRankingTable items={filteredCore} />
+          <>
+            <CoreRankingTable items={filteredCore} />
+            {secondaryItems.length > 0 && (
+              <>
+                <div style={{ padding: '1rem 1.25rem 0.5rem', borderTop: '2px solid var(--border-color)' }}>
+                  <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0, fontWeight: 600 }}>
+                    Avaliacao parcial ({secondaryItems.length} ativos — EY+ROC, sem NPY)
+                  </h3>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0', opacity: 0.7 }}>
+                    Estes ativos nao possuem dados completos de payout. Rankeados com formula alternativa. Apenas para pesquisa.
+                  </p>
+                </div>
+                <CoreRankingTable items={secondaryItems} showModel />
+              </>
+            )}
+          </>
         ) : (
           <ThesisRankingTable items={filteredThesis} />
         )}
-
-        {/* Data provenance */}
-        {mode === 'core' && <ProvenanceFooter provenance={coreProvenance} />}
       </div>
     </div>
   );
