@@ -23,11 +23,11 @@ Central registry of follow-ups across all micro features.
 
 (none)
 
-## Structural (no action — documented)
+## Structural (documented)
 
 | ID | Description | Investigation |
 |----|-------------|---------------|
-| FU-P5-2 | 42 tickers without market_cap. DY 80.2% (gate PASSES). | Yahoo does not cover these tickers (404/no data). 6 with price had mcap derived via CVM shares (resolved). 42 remaining need alternative provider (brapi/DM). Not fixable with current vendor. |
+| FU-P5-2 | 27 tickers without market_cap after B3 backfill. | Was 42, Plan 7 resolved 15 via B3 COTAHIST. Remaining 27 are: ticker mismatches (CELP3→EQPA3, STPB3→STBP3, B3→B3SA3, SC303→invalid), delisted, or OTC/non-negotiated. Root cause: securities table ticker quality. Fix: ticker cleanup MF. |
 
 ## Debt
 
