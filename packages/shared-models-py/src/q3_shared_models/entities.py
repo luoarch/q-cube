@@ -114,6 +114,7 @@ class SourceProvider(str, enum.Enum):
     dados_de_mercado = "dados_de_mercado"
     manual = "manual"
     yahoo = "yahoo"
+    b3 = "b3"
 
 
 class ThesisBucket(str, enum.Enum):
