@@ -35,5 +35,7 @@ Central registry of follow-ups across all micro features.
 |------|--------|--------|--------|
 | Frontend ranking tests | FU-P6-1 | No component tests for ranking page or 3D scenes | Open |
 | Beat retry | MF-RT-01B | take_daily_snapshot has no autoretry_for | Open |
+| sys.path hack in fetch_b3_daily | Plan 7 | quant-engine task imports fundamentals-engine via sys.path. Move to shared lib or HTTP endpoint. | Open |
+| CVM scale × price = bad mcap | Plan 7 | 6 micro-caps with CVM shares in thousands produce inflated DY. Do NOT derive mcap for CVM-scale-unknown issuers without validation. | Documented |
 | ~~Compat view auto-refresh~~ | ~~Plan 6~~ | ~~Manual REFRESH required~~ | **Resolved** — beat task 17:50 seg-sex |
 | ~~paginatedRankingSchema~~ | ~~Plan 6~~ | ~~Legacy schema in shared-contracts~~ | **Resolved** — deleted |
