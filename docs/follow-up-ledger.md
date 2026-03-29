@@ -21,9 +21,13 @@ Central registry of follow-ups across all micro features.
 
 ## Open
 
-| ID | Origin MF | Severity | Category | Description |
-|----|-----------|----------|----------|-------------|
-| FU-P5-2 | Plan 5 | degraded | feature | DY 80.2% (gate PASSES). 48 tickers without market_cap in compat view (Yahoo gap). Fix = snapshot refresh for these tickers. |
+(none)
+
+## Structural (no action — documented)
+
+| ID | Description | Investigation |
+|----|-------------|---------------|
+| FU-P5-2 | 42 tickers without market_cap. DY 80.2% (gate PASSES). | Yahoo does not cover these tickers (404/no data). 6 with price had mcap derived via CVM shares (resolved). 42 remaining need alternative provider (brapi/DM). Not fixable with current vendor. |
 
 ## Debt
 
