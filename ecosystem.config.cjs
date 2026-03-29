@@ -82,6 +82,15 @@ module.exports = {
       }
     },
     {
+      name: "q3-quant-beat",
+      cwd: "./services/quant-engine",
+      script: ".venv/bin/python",
+      args: "-m celery -A q3_quant_engine.celery_app beat --loglevel=info",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
       name: "q3-ai-beat",
       cwd: "./services/ai-assistant",
       script: ".venv/bin/python",
