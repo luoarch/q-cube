@@ -358,9 +358,9 @@ export default function AssetDetailPage({ params }: { params: Promise<{ ticker: 
           <span style={{ fontWeight: 400, fontSize: 16, color: 'var(--text-secondary)' }}>{asset.name}</span>
         </h1>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {asset.magicFormulaRank != null && (
+          {asset.rankWithinModel != null && (
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              Rank <strong style={{ color: 'var(--accent-gold)' }}>#{asset.magicFormulaRank}</strong>
+              Rank <strong style={{ color: 'var(--accent-gold)' }}>#{asset.rankWithinModel}</strong>
             </span>
           )}
           <QualityBadge score={asset.compositeScore} />

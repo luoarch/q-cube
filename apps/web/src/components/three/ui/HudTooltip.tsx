@@ -41,7 +41,7 @@ export function HudTooltip({ items }: { items: RankingItem[] }) {
         <div style={{ marginTop: 4, display: 'flex', gap: 12, fontSize: 12, opacity: 0.8 }}>
           <span>EY: {(item.earningsYield * 100).toFixed(1)}%</span>
           <span>ROC: {(item.returnOnCapital * 100).toFixed(1)}%</span>
-          <span>Rank: #{item.magicFormulaRank}</span>
+          <span>Rank: #{item.rankWithinModel}</span>
         </div>
       </div>
     </Html>

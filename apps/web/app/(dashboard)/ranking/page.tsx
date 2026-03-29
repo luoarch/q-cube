@@ -167,7 +167,7 @@ function CoreRankingTable({ items }: { items: RankingItem[] }) {
         {items.map((item) => (
           <tr key={item.ticker}>
             <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              {item.magicFormulaRank}
+              {item.rankWithinModel}
             </td>
             <td>
               <Link
@@ -292,8 +292,9 @@ export default function RankingPage() {
   const [bucketFilter, setBucketFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  const coreItems = useMemo(() => coreQuery.data?.data ?? [], [coreQuery.data]);
-  const coreProvenance = coreQuery.data?.provenance ?? null;
+  const coreItems = useMemo(() => coreQuery.data?.primaryRanking ?? [], [coreQuery.data]);
+  const secondaryItems = useMemo(() => coreQuery.data?.secondaryRanking ?? [], [coreQuery.data]);
+  const coreSummary = coreQuery.data?.summary ?? null;
   const thesisData = thesisQuery.data;
   const thesisItems = useMemo(() => thesisData?.data ?? [], [thesisData]);
   const thesisMeta = thesisData?.meta ?? null;

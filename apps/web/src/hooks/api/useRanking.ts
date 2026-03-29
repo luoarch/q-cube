@@ -2,21 +2,22 @@ import { useQuery } from '@tanstack/react-query';
 
 import { apiClient } from './apiClient';
 
-import type { PaginatedRanking, RankingItem, DataProvenance } from '@q3/shared-contracts';
-
-interface RankingResult {
-  data: RankingItem[];
-  provenance: DataProvenance | null;
-}
+import type { SplitRankingResponse, RankingItem } from '@q3/shared-contracts';
 
 export function useRanking() {
-  return useQuery<RankingResult>({
-    queryKey: ['ranking', 'full'],
+  return useQuery<SplitRankingResponse>({
+    queryKey: ['ranking', 'split'],
     queryFn: async () => {
-      const res = await apiClient.get<PaginatedRanking>('/ranking', {
-        limit: '0',
-      });
-      return { data: res.data, provenance: res.provenance ?? null };
+      return apiClient.get<SplitRankingResponse>('/ranking');
     },
   });
+}
+
+/** Convenience: primary items only (for 3D scenes, dashboard, etc.) */
+export function usePrimaryRanking(): { data: RankingItem[] | undefined; isLoading: boolean } {
+  const query = useRanking();
+  return {
+    data: query.data?.primaryRanking,
+    isLoading: query.isLoading,
+  };
 }

@@ -21,7 +21,7 @@ import { ScreenReaderDescription } from '../ui/ScreenReaderDescription';
 
 function GalaxyInner() {
   const { data: rankingResult } = useRanking();
-  const items = rankingResult?.data ?? [];
+  const items = rankingResult?.primaryRanking ?? [];
   const budget = useResponsiveParticles();
   const filters = useSceneStore((s) => s.filters);
   useKeyboardNav(items);
@@ -49,7 +49,7 @@ function GalaxyInner() {
 
 export function RankingGalaxyScene() {
   const { data: rankingResult, isLoading, error } = useRanking();
-  const items = rankingResult?.data ?? [];
+  const items = rankingResult?.primaryRanking ?? [];
   const selectedTicker = useSceneStore((s) => s.selectedTicker);
 
   if (error) {

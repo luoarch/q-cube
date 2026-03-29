@@ -66,7 +66,7 @@ export function AssetParticleCloud({ items }: { items: RankingItem[] }) {
       const item = items[i]!;
       const isHovered = item.ticker === hoveredTicker;
       const isSelected = item.ticker === selectedTicker;
-      const isTop10 = item.magicFormulaRank <= 10;
+      const isTop10 = item.rankWithinModel <= 10;
 
       // Modulate scale for hover feedback
       const baseSize = sizes[i]!;

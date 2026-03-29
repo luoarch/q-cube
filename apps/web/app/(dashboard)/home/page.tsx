@@ -34,7 +34,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
 
 export default function HomePage() {
   const { data: rankingResult } = useRanking();
-  const items = rankingResult?.data ?? [];
+  const items = rankingResult?.primaryRanking ?? [];
 
   const topItem = items[0];
   const avgRoic = items.length > 0

@@ -17,7 +17,7 @@ import { ScreenReaderDescription } from '../ui/ScreenReaderDescription';
 
 function QCubeInner() {
   const { data: rankingResult } = useRanking();
-  const items = rankingResult?.data ?? [];
+  const items = rankingResult?.primaryRanking ?? [];
   const budget = useResponsiveParticles();
   useKeyboardNav(items);
 
@@ -39,7 +39,7 @@ function QCubeInner() {
 
 export function QCubeScene() {
   const { data: rankingResult, isLoading, error } = useRanking();
-  const items = rankingResult?.data ?? [];
+  const items = rankingResult?.primaryRanking ?? [];
 
   if (error) {
     return (
