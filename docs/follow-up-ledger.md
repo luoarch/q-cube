@@ -11,7 +11,7 @@ Central registry of follow-ups across all micro features.
 | FU-P3C1-1 | Plan 3C.1 | cleanup | investigation | 385 orphan issuers without securities — genuinely unlisted (spike proved) | — |
 | FU-P4-1 | Plan 4 | degraded | operational | Coverage DY 49.6%, NBY 72.0%, NPY 48.7% post-filter — all gates FAIL | — |
 | FU-P5-1 | Plan 5 | degraded | feature | Deprecar nby_proxy_free / npy_proxy_free apos validacao de NBY v2 | Plan 5B (pendente) |
-| FU-P5-2 | Plan 5 | blocking | feature | DY coverage 49.6% is now sole bottleneck for NPY — requires DFC label matching improvement | — |
+| FU-P5-2 | Plan 5 | degraded | feature | DY 80.2% (gate PASSES). 43/47 missing issuers have NO market_cap (Yahoo gap). Fix = snapshot refresh, not recompute. | — |
 | FU-P5-3 | Plan 5 | cleanup | investigation | CVM scale variable (~79 issuers in thousands) — document for future absolute shares usage | — |
 | FU-P5-4 | Plan 5 | cleanup | operational | 7 NO_T issuers gain coverage when DFP 2024 filings arrive | — |
 | FU-P6-1 | Plan 6 | degraded | feature | Frontend needs adaptation to consume primaryRanking/secondaryRanking instead of data[] | — |
