@@ -126,6 +126,9 @@ class _CompatFS:
     cash_conversion: Decimal | None = None
     market_cap: Decimal | None = None
     avg_daily_volume: Decimal | None = None
+    dividend_yield: Decimal | None = None
+    net_buyback_yield: Decimal | None = None
+    net_payout_yield: Decimal | None = None
 
 
 def _fetch_latest_fundamentals_v2(
@@ -138,12 +141,15 @@ def _fetch_latest_fundamentals_v2(
     data is global (not tenant-scoped).
     """
     sql = text("""
-        SELECT ticker, name, sector,
+        SELECT DISTINCT ON (ticker)
+               ticker, name, sector,
                ebit, enterprise_value, net_working_capital, fixed_assets,
                roic, net_debt, ebitda, net_margin, gross_margin,
                earnings_yield,
-               market_cap, avg_daily_volume
+               market_cap, avg_daily_volume,
+               dividend_yield, net_buyback_yield, net_payout_yield
         FROM v_financial_statements_compat
+        ORDER BY ticker, market_cap DESC NULLS LAST
     """)
 
     rows = session.execute(sql).all()
@@ -174,6 +180,9 @@ def _fetch_latest_fundamentals_v2(
             cash_conversion=None,
             market_cap=_dec(row.market_cap),
             avg_daily_volume=_dec(row.avg_daily_volume),
+            dividend_yield=_dec(row.dividend_yield),
+            net_buyback_yield=_dec(row.net_buyback_yield),
+            net_payout_yield=_dec(row.net_payout_yield),
         )
         results.append((asset, fs))
 
@@ -358,54 +367,75 @@ def run_magic_formula_hybrid(
     if not filtered:
         return []
 
-    n = len(filtered)
+    # Split into primary (NPY available) and secondary (NPY missing)
+    # Each group ranked independently — no cross-model contamination (Plan 6)
+    primary_items = [(i, a, fs, ey, roc) for i, a, fs, ey, roc in filtered
+                     if getattr(fs_map[i], "net_payout_yield", None) is not None]
+    secondary_items = [(i, a, fs, ey, roc) for i, a, fs, ey, roc in filtered
+                       if getattr(fs_map[i], "net_payout_yield", None) is None]
 
-    # 2. Core ranks (descending = higher is better)
-    ey_ranks = _rank_descending([(i, ey) for i, _, _, ey, _ in filtered])
-    roc_ranks = _rank_descending([(i, roc) for i, _, _, _, roc in filtered])
+    results: list[RankedAsset] = []
+    results.extend(rank_model_group(primary_items, fs_map, model="NPY_ROC"))
+    results.extend(rank_model_group(secondary_items, fs_map, model="EY_ROC"))
 
-    ey_pct = _rank_percentile(ey_ranks, n)
+    return results
+
+
+def rank_model_group(
+    items: list[tuple[int, object, object, float | None, float | None]],
+    fs_map: dict[int, object],
+    *,
+    model: str,
+) -> list[RankedAsset]:
+    """Rank a single model group. No cross-model mixing."""
+    if not items:
+        return []
+
+    n = len(items)
+    use_npy = model == "NPY_ROC"
+
+    # Value factor: NPY or EY
+    if use_npy:
+        value_values = [(i, float(getattr(fs_map[i], "net_payout_yield")))
+                        for i, _, _, _, _ in items]
+    else:
+        value_values = [(i, ey) for i, _, _, ey, _ in items]
+
+    roc_values = [(i, roc) for i, _, _, _, roc in items]
+
+    value_ranks = _rank_descending(value_values)
+    roc_ranks = _rank_descending(roc_values)
+    value_pct = _rank_percentile(value_ranks, n)
     roc_pct = _rank_percentile(roc_ranks, n)
 
-    # 3. Quality signal ranks
-    # debt_to_ebitda: use pre-computed metric if available, else derive from net_debt/ebitda
+    # Quality: debt + cash
     debt_ebitda_values: list[tuple[int, float | None]] = []
-    for i, _, fs, _, _ in filtered:
+    cash_conv_values: list[tuple[int, float | None]] = []
+    for i, _, fs, _, _ in items:
         if hasattr(fs, "debt_to_ebitda") and fs.debt_to_ebitda is not None:
             debt_ebitda_values.append((i, float(fs.debt_to_ebitda)))
         else:
             debt_ebitda_values.append((i, _safe_div(fs.net_debt, fs.ebitda)))
-
-    # cash_conversion: pre-computed metric
-    cash_conv_values: list[tuple[int, float | None]] = []
-    for i, _, fs, _, _ in filtered:
         val = getattr(fs, "cash_conversion", None)
         cash_conv_values.append((i, float(val) if val is not None else None))
 
     debt_ebitda_ranks = _rank_ascending(debt_ebitda_values)
     cash_conv_ranks = _rank_descending(cash_conv_values)
-
     debt_ebitda_pct = _rank_percentile(debt_ebitda_ranks, n)
     cash_conv_pct = _rank_percentile(cash_conv_ranks, n)
 
-    # 4. Compute final scores
-    results: list[RankedAsset] = []
-    for i, asset, _fs, ey, roc in filtered:
-        core_score = 0.5 * ey_pct[i] + 0.5 * roc_pct[i]
-
-        # Collect available quality signals per asset
+    scored: list[tuple[float, int, object, float | None, float | None]] = []
+    for i, asset, _fs, ey, roc in items:
+        core_score = 0.5 * value_pct[i] + 0.5 * roc_pct[i]
         quality_signals: list[float] = []
         fs_i = fs_map[i]
 
-        # debt_to_ebitda available?
         has_dte = (
             (hasattr(fs_i, "debt_to_ebitda") and fs_i.debt_to_ebitda is not None)
             or (fs_i.net_debt is not None and fs_i.ebitda is not None and fs_i.ebitda != 0)
         )
         if has_dte:
             quality_signals.append(debt_ebitda_pct[i])
-
-        # cash_conversion available?
         if getattr(fs_i, "cash_conversion", None) is not None:
             quality_signals.append(cash_conv_pct[i])
 
@@ -415,27 +445,25 @@ def run_magic_formula_hybrid(
         else:
             final_score = core_score
 
+        scored.append((final_score, i, asset, ey, roc))
+
+    scored.sort(key=lambda x: x[0])
+
+    results: list[RankedAsset] = []
+    for rank, (score, i, asset, ey, roc) in enumerate(scored, 1):
         results.append(RankedAsset(
             ticker=asset.ticker,
             name=asset.name,
             sector=asset.sector,
             earnings_yield=ey,
             return_on_capital=roc,
-            combined_rank=0,
+            combined_rank=rank,
             score_details={
-                "ey_rank": ey_ranks[i],
-                "roc_rank": roc_ranks[i],
-                "core_score": round(core_score, 6),
-                "debt_ebitda_rank": debt_ebitda_ranks[i],
-                "cash_conv_rank": cash_conv_ranks[i],
-                "quality_signals": len(quality_signals),
-                "final_score": round(final_score, 6),
+                "model_family": model,
+                "rank_within_model": rank,
+                "final_score": round(score, 6),
             },
         ))
-
-    results.sort(key=lambda r: r.score_details["final_score"])
-    for final_rank, r in enumerate(results, 1):
-        r.combined_rank = final_rank
 
     return results
 

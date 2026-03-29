@@ -29,6 +29,12 @@ from q3_quant_engine.decision.router import router as decision_router  # noqa: E
 app.include_router(decision_router)
 
 
+# Ranking API (SSOT — NestJS proxies to this)
+from q3_quant_engine.ranking_router import router as ranking_router  # noqa: E402
+
+app.include_router(ranking_router)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"service": "quant-engine", "status": "ok"}

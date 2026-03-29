@@ -57,6 +57,9 @@ class PITFinancials:
     cash_conversion: Decimal | None = None
     market_cap: Decimal | None = None
     avg_daily_volume: Decimal | None = None
+    dividend_yield: Decimal | None = None
+    net_buyback_yield: Decimal | None = None
+    net_payout_yield: Decimal | None = None
 
 
 @dataclass
@@ -228,6 +231,9 @@ def fetch_fundamentals_pit(
             earnings_yield=metric_map.get("earnings_yield"),
             debt_to_ebitda=metric_map.get("debt_to_ebitda"),
             cash_conversion=metric_map.get("cash_conversion"),
+            dividend_yield=metric_map.get("dividend_yield"),
+            net_buyback_yield=metric_map.get("net_buyback_yield"),
+            net_payout_yield=metric_map.get("net_payout_yield"),
         )
 
         results.append((asset, fs))

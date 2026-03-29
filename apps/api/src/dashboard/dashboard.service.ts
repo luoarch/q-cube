@@ -75,17 +75,18 @@ export class DashboardService {
         }
       : { stage: 'idle', progress: 0, lastRun: null };
 
-    // Top ranked (reuse ranking service, take top 5)
-    const ranking = await this.rankingService.getRanking(tenantId);
+    // Top ranked (use primaryRanking — fully evaluated only)
+    const splitRanking = await this.rankingService.getRanking(tenantId);
+    const ranking = splitRanking.primaryRanking;
     const topRanked = ranking.slice(0, 5).map((item) => ({
       ticker: item.ticker,
       name: item.name,
-      rank: item.magicFormulaRank,
+      rank: item.rankWithinModel,
       price: item.price,
       change: item.change,
     }));
 
-    // Sector distribution
+    // Sector distribution (primary only — fully evaluated universe)
     const sectorDist = new Map<string, number>();
     for (const item of ranking) {
       const s = item.sector || UNKNOWN_SECTOR;

@@ -143,49 +143,18 @@ def _rank_pit_data(
     roc_ranks = _rank_descending([(i, roc) for i, _, _, _, roc in filtered])
 
     if strategy_type == "magic_formula_hybrid":
-        ey_pct = _rank_percentile(ey_ranks, n)
-        roc_pct = _rank_percentile(roc_ranks, n)
+        # Split-model ranking (Plan 6): primary_only by default
+        from q3_quant_engine.strategies.ranking import rank_model_group
 
-        debt_ebitda_values = []
-        cash_conv_values = []
-        for i, _, fs, _, _ in filtered:
-            if hasattr(fs, "debt_to_ebitda") and fs.debt_to_ebitda is not None:
-                debt_ebitda_values.append((i, float(fs.debt_to_ebitda)))
-            else:
-                debt_ebitda_values.append((i, _safe_div(fs.net_debt, fs.ebitda)))
-            val = getattr(fs, "cash_conversion", None)
-            cash_conv_values.append((i, float(val) if val is not None else None))
+        fs_map_bt = {i: fs for i, _, fs, _, _ in filtered}
+        primary = [(i, a, fs, ey, roc) for i, a, fs, ey, roc in filtered
+                   if getattr(fs, "net_payout_yield", None) is not None]
+        secondary = [(i, a, fs, ey, roc) for i, a, fs, ey, roc in filtered
+                     if getattr(fs, "net_payout_yield", None) is None]
 
-        debt_ebitda_ranks = _rank_ascending(debt_ebitda_values)
-        cash_conv_ranks = _rank_descending(cash_conv_values)
-        debt_ebitda_pct = _rank_percentile(debt_ebitda_ranks, n)
-        cash_conv_pct = _rank_percentile(cash_conv_ranks, n)
-
-        results = []
-        for i, asset, fs, ey, roc in filtered:
-            core_score = 0.5 * ey_pct[i] + 0.5 * roc_pct[i]
-            quality_signals = []
-            has_dte = (
-                (hasattr(fs, "debt_to_ebitda") and fs.debt_to_ebitda is not None)
-                or (fs.net_debt is not None and fs.ebitda is not None and fs.ebitda != 0)
-            )
-            if has_dte:
-                quality_signals.append(debt_ebitda_pct[i])
-            if getattr(fs, "cash_conversion", None) is not None:
-                quality_signals.append(cash_conv_pct[i])
-
-            if quality_signals:
-                quality_score = sum(quality_signals) / len(quality_signals)
-                final_score = WEIGHT_CORE * core_score + WEIGHT_QUALITY * quality_score
-            else:
-                final_score = core_score
-
-            results.append(RankedAsset(
-                ticker=asset.ticker, name=asset.name, sector=asset.sector,
-                earnings_yield=ey, return_on_capital=roc, combined_rank=0,
-                score_details={"final_score": round(final_score, 6)},
-            ))
-        results.sort(key=lambda r: r.score_details["final_score"])
+        # Default: primary_only (Plan 6 D6). Use all NPY-available assets.
+        results = rank_model_group(primary, fs_map_bt, model="NPY_ROC")
+        results.extend(rank_model_group(secondary, fs_map_bt, model="EY_ROC"))
     else:
         results = []
         for i, asset, _, ey, roc in filtered:
