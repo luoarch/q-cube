@@ -30,4 +30,8 @@ celery_app.conf.beat_schedule = {
         "task": "q3_quant_engine.tasks.pilot_tasks.compute_all_forward_returns",
         "schedule": crontab(hour=19, minute=0, day_of_week="1-5"),
     },
+    "refresh-compat-view": {
+        "task": "q3_quant_engine.tasks.pilot_tasks.refresh_compat_view",
+        "schedule": crontab(hour=17, minute=50, day_of_week="1-5"),
+    },
 }

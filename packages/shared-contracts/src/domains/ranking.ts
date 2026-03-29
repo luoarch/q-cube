@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import { dataProvenanceSchema } from './portfolio.js';
-
 // --- Missing data enum (cause-based, no redundant missing_npy) ---
 
 export const missingDataEnum = z.enum([
@@ -12,7 +10,7 @@ export const missingDataEnum = z.enum([
   'partial_financials',
 ]);
 
-// --- Ranking item (new split-model schema) ---
+// --- Ranking item (split-model schema) ---
 
 export const rankingItemSchema = z.object({
   ticker: z.string(),
@@ -31,7 +29,6 @@ export const rankingItemSchema = z.object({
   quality: z.enum(['high', 'medium', 'low']),
   liquidity: z.enum(['high', 'medium', 'low']),
   // compositeScore is comparable ONLY within the same modelFamily.
-  // Never use to order a merged list.
   compositeScore: z.number().nullable(),
 });
 
@@ -46,7 +43,7 @@ export const rankingSummarySchema = z.object({
   missingDataBreakdown: missingSummarySchema,
 });
 
-// --- Split-model response (no pagination — D1) ---
+// --- Split-model response (no pagination) ---
 
 export const splitRankingResponseSchema = z.object({
   primaryRanking: z.array(rankingItemSchema),
@@ -54,24 +51,7 @@ export const splitRankingResponseSchema = z.object({
   summary: rankingSummarySchema,
 });
 
-// --- Legacy compat (will be removed) ---
-
-export const paginationMetaSchema = z.object({
-  page: z.number(),
-  limit: z.number(),
-  total: z.number(),
-  totalPages: z.number(),
-});
-
-export const paginatedRankingSchema = z.object({
-  data: z.array(rankingItemSchema),
-  meta: paginationMetaSchema,
-  provenance: dataProvenanceSchema.nullable().optional(),
-});
-
 export type MissingData = z.infer<typeof missingDataEnum>;
 export type RankingItem = z.infer<typeof rankingItemSchema>;
 export type RankingSummary = z.infer<typeof rankingSummarySchema>;
 export type SplitRankingResponse = z.infer<typeof splitRankingResponseSchema>;
-export type PaginationMeta = z.infer<typeof paginationMetaSchema>;
-export type PaginatedRanking = z.infer<typeof paginatedRankingSchema>;

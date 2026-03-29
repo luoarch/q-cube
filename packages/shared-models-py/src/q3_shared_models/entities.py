@@ -106,8 +106,6 @@ class MetricCode(str, enum.Enum):
     dividend_yield = "dividend_yield"
     net_buyback_yield = "net_buyback_yield"
     net_payout_yield = "net_payout_yield"
-    nby_proxy_free = "nby_proxy_free"
-    npy_proxy_free = "npy_proxy_free"
 
 
 class SourceProvider(str, enum.Enum):

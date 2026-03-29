@@ -11,6 +11,8 @@ from datetime import date
 
 import httpx
 
+from sqlalchemy import text as sa_text
+
 from q3_quant_engine.celery_app import celery_app
 from q3_quant_engine.db.session import SessionLocal
 from q3_quant_engine.pilot.services import SnapshotService, ForwardReturnService
@@ -103,3 +105,14 @@ def compute_all_forward_returns() -> dict:
 
     logger.info("Forward returns: inserted=%d skipped=%d", total_inserted, total_skipped)
     return {"status": "ok", "inserted": total_inserted, "skipped": total_skipped}
+
+
+@celery_app.task(name="q3_quant_engine.tasks.pilot_tasks.refresh_compat_view")
+def refresh_compat_view() -> dict:
+    """Refresh the materialized compat view. ~0.2s typical."""
+    logger.info("Refreshing v_financial_statements_compat")
+    with SessionLocal() as session:
+        session.execute(sa_text("REFRESH MATERIALIZED VIEW v_financial_statements_compat"))
+        session.commit()
+    logger.info("Compat view refreshed")
+    return {"status": "ok"}
